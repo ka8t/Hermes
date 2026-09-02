@@ -13,3 +13,9 @@ model:
   provider: custom
   base_url: http://llama-swap:8080/v1
   context_length: 65536
+
+# Every dangerous action requires an explicit human answer — no silent
+# auto-approval, on any deployment size. See ../../shared/enterprise-safety.md
+# for exactly what this does and does not cover.
+approvals:
+  mode: manual

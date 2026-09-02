@@ -24,7 +24,14 @@ default — **Qwen2.5-Coder-7B-Instruct** in `Q4_K_M` (see
 default to official **prebuilt binaries** rather than building anything from
 source (see [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md)).
 The Hermes web dashboard, when enabled, requires a real username/password
-(it refuses to start without one — see each platform's README).
+(it refuses to start without one — see each platform's README). Both also
+ship [`ghcr.io/ka8t/hermes`](docker/) — the same Hermes, plus two bundled
+skills that let you describe a new agent in plain language and get a
+working profile back (see [`shared/managing-models.md`](shared/managing-models.md)
+and [`skills/agent-creation/`](skills/agent-creation/)), and an
+enterprise-safe approval default so nothing destructive ever runs without
+an explicit human answer (see
+[`shared/enterprise-safety.md`](shared/enterprise-safety.md)).
 
 ## Why native on Mac but in Docker on the VPS?
 
@@ -67,11 +74,14 @@ cd linux-x86_64-vps && cat README.md
 Hermes/
 ├── macos-arm64/          # native llama-swap + llama.cpp (Metal) + Hermes in Docker
 ├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes, all in Docker Compose
+├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
+├── skills/agent-creation/  # the guided agent-creation skills + starter templates
 └── shared/
     ├── telegram-setup.md      # bot creation, environment variables
     ├── model-notes.md         # GGUF model choice, context constraints
     ├── managing-models.md     # add / switch / remove models via llama-swap
-    └── prebuilt-binaries.md   # official binaries used, per platform
+    ├── prebuilt-binaries.md   # official binaries used, per platform
+    └── enterprise-safety.md   # the approvals default, and what it doesn't cover
 ```
 
 ## Security
