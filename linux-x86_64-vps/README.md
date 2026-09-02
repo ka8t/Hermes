@@ -1,21 +1,22 @@
-# Hermes Agent + llama.cpp — VPS Linux x86-64 (Docker)
+# Hermes Agent + llama.cpp — Linux x86-64 VPS (Docker)
 
-Stack 100 % Docker Compose, pensée pour un petit VPS Ubuntu (type Hostinger
-KVM2, 2 vCPU / 8 Go RAM) : un conteneur `llama-server` sert un modèle GGUF en
-local, un conteneur `hermes` fait tourner l'agent et s'y connecte en interne —
-aucune clé API externe, rien ne sort du serveur sauf les messages Telegram.
+A fully Docker Compose stack, designed for a small Ubuntu VPS (e.g. a
+Hostinger KVM2, 2 vCPU / 8 GB RAM): a `llama-server` container serves a GGUF
+model locally, a `hermes` container runs the agent and connects to it
+internally — no external API key, nothing leaves the server except Telegram
+messages.
 
 ```
 ┌─────────────────────────── VPS (docker compose) ───────────────────────────┐
 │                                                                             │
 │   ┌───────────────────┐   http://llama-server:8080/v1   ┌───────────────┐  │
 │   │   llama-server     │ ◄────────────────────────────── │    hermes     │  │
-│   │ ghcr.io/ggml-org/  │        (réseau interne)          │ nousresearch/ │  │
+│   │ ghcr.io/ggml-org/  │        (internal network)        │ nousresearch/ │  │
 │   │  llama.cpp:server  │                                  │ hermes-agent  │  │
 │   └─────────┬──────────┘                                  └───────┬───────┘  │
-│             │ ./models (lecture seule)                            │          │
+│             │ ./models (read-only)                                │          │
 │             ▼                                                     ▼          │
-│        modèle .gguf                                     ./data (mémoire,    │
+│        .gguf model                                       ./data (memory,    │
 │                                                            skills, config)   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                                                      │
@@ -23,96 +24,96 @@ aucune clé API externe, rien ne sort du serveur sauf les messages Telegram.
                                                               Telegram (bot)
 ```
 
-## Prérequis
+## Prerequisites
 
-- Un VPS Ubuntu 22.04+ (x86-64), au moins 8 Go de RAM pour un modèle 7B en `Q4_K_M`.
-- Un accès root/sudo en SSH.
-- Un bot Telegram — voir [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
+- An Ubuntu 22.04+ VPS (x86-64), at least 8 GB of RAM for a 7B model in `Q4_K_M`.
+- Root/sudo access over SSH.
+- A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
 
 ## Installation
 
 ```bash
-ssh root@<ip-du-vps>
+ssh root@<vps-ip>
 git clone https://github.com/ka8t/Hermes.git
 cd Hermes/linux-x86_64-vps
 ./provision.sh
 ```
 
-`provision.sh` installe Docker + le plugin Compose s'ils manquent, crée les
-dossiers persistants (`data/`, `models/`), copie `.env.example` → `.env` et
-`config/config.yaml.example` → `data/config.yaml`, puis télécharge le modèle
-par défaut (voir [`../shared/model-notes.md`](../shared/model-notes.md) pour
-en changer).
+`provision.sh` installs Docker + the Compose plugin if missing, creates the
+persistent folders (`data/`, `models/`), copies `.env.example` → `.env` and
+`config/config.yaml.example` → `data/config.yaml`, then downloads the default
+model (see [`../shared/model-notes.md`](../shared/model-notes.md) to change
+it).
 
 ## Configuration
 
-1. **Éditer `.env`** — au minimum `TELEGRAM_BOT_TOKEN` et
-   `TELEGRAM_ALLOWED_USERS` (détails dans
+1. **Edit `.env`** — at minimum `TELEGRAM_BOT_TOKEN` and
+   `TELEGRAM_ALLOWED_USERS` (details in
    [`../shared/telegram-setup.md`](../shared/telegram-setup.md)).
-2. **`data/config.yaml`** est déjà prêt (copié depuis
-   `config/config.yaml.example`) : il pointe Hermes vers
-   `http://llama-server:8080/v1`, le nom du service voisin dans
-   `docker-compose.yml` — Docker Compose résout ce nom automatiquement, aucune
-   IP à gérer.
+2. **`data/config.yaml`** is already prepared (copied from
+   `config/config.yaml.example`): it points Hermes at
+   `http://llama-server:8080/v1`, the neighboring service's name in
+   `docker-compose.yml` — Docker Compose resolves that name automatically, no
+   IP address to manage.
 
-## Démarrage
+## Starting
 
 ```bash
 docker compose up -d
 docker compose logs -f llama-server
-# attendre la ligne "server is listening on http://0.0.0.0:8080"
+# wait for the line "server is listening on http://0.0.0.0:8080"
 ```
 
-Puis, **une seule fois**, brancher Telegram :
+Then, **once**, wire up Telegram:
 
 ```bash
 docker compose exec hermes hermes gateway setup
 ```
 
-## Vérification
+## Verification
 
 ```bash
-# santé de llama.cpp
+# llama.cpp health
 curl http://127.0.0.1:8080/health
 
-# état de l'agent
+# agent status
 docker compose exec hermes hermes doctor
 
-# logs de l'agent
+# agent logs
 docker compose logs -f hermes
 ```
 
-Puis, sur Telegram, envoyer un message au bot : « tu m'entends ? ». Une
-réponse confirme que la chaîne complète fonctionne (Telegram → hermes →
-llama-server → modèle → retour).
+Then, on Telegram, send the bot a message: "can you hear me?". A reply
+confirms the whole chain works (Telegram → hermes → llama-server → model →
+back).
 
-Le tableau de bord web est accessible sur `http://<ip-du-vps>:9119` si
-`HERMES_DASHBOARD=1` (défini par défaut dans `.env.example`) —
-pensez à le protéger derrière un pare-feu ou un tunnel SSH, il n'a pas
-d'authentification propre par défaut.
+The web dashboard is available at `http://<vps-ip>:9119` if
+`HERMES_DASHBOARD=1` (the default in `.env.example`) — make sure to protect
+it behind a firewall or an SSH tunnel, it has no authentication of its own by
+default.
 
-## Opérations courantes
+## Common operations
 
 ```bash
-docker compose restart hermes        # relance juste l'agent
+docker compose restart hermes        # restarts just the agent
 docker compose exec hermes hermes doctor --fix
 docker compose logs --tail 100 llama-server
-docker compose down                  # arrêt (les données persistent dans ./data et ./models)
-docker compose pull && docker compose up -d   # mise à jour des images
+docker compose down                  # stop (data persists in ./data and ./models)
+docker compose pull && docker compose up -d   # update images
 ```
 
-## Dépannage
+## Troubleshooting
 
-| Symptôme | Piste |
+| Symptom | What to check |
 |---|---|
-| `hermes` reste en `starting` | `llama-server` n'a pas encore fini de charger le modèle — regarder `docker compose logs llama-server` |
-| Les outils ressortent en texte JSON brut au lieu de s'exécuter | Le flag `--jinja` manque dans `docker-compose.yml` (déjà présent ici — à vérifier si modifié) |
-| Réponses tronquées / lentes | `LLAMA_CTX_SIZE` ou `LLAMA_THREADS` mal dimensionnés pour le VPS loué — ajuster dans `.env` |
-| Le bot Telegram ne répond jamais | `TELEGRAM_ALLOWED_USERS` ne correspond pas à votre identifiant réel — revoir [`../shared/telegram-setup.md`](../shared/telegram-setup.md) |
+| `hermes` stays `starting` | `llama-server` hasn't finished loading the model yet — check `docker compose logs llama-server` |
+| Tool calls come back as raw JSON text instead of running | The `--jinja` flag is missing from `docker-compose.yml` (already present here — verify if you changed it) |
+| Slow / truncated responses | `LLAMA_CTX_SIZE` or `LLAMA_THREADS` poorly sized for the rented VPS — adjust in `.env` |
+| The Telegram bot never replies | `TELEGRAM_ALLOWED_USERS` doesn't match your real user ID — revisit [`../shared/telegram-setup.md`](../shared/telegram-setup.md) |
 
 ## Sources
 
-- Image et flags llama.cpp : [ggml-org/llama.cpp — docs/docker.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md)
-- Image et volumes Hermes : [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
-- Provider `custom` / `config.yaml` : [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
-- Variables Telegram : [hermes-agent.nousresearch.com/docs/user-guide/messaging](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/)
+- llama.cpp image and flags: [ggml-org/llama.cpp — docs/docker.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md)
+- Hermes image and volumes: [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
+- `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
+- Telegram variables: [hermes-agent.nousresearch.com/docs/user-guide/messaging](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/)

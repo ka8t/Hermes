@@ -2,17 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Optionnel : fait tourner llama-server en arrière-plan (démarre à la
-  session, redémarre s'il crashe), pour ne pas avoir un terminal ouvert
-  en permanence.
+  Optional: runs llama-server in the background (starts at login, restarts
+  if it crashes), so you don't need to keep a terminal open at all times.
 
-  Installation :
+  Install:
     cp scripts/com.hermes.llama-server.plist.example \
        ~/Library/LaunchAgents/com.hermes.llama-server.plist
-    # éditer les deux chemins ci-dessous (REPLACE_WITH_REPO_PATH)
+    # edit the two paths below (REPLACE_WITH_REPO_PATH)
     launchctl load ~/Library/LaunchAgents/com.hermes.llama-server.plist
 
-  Pour l'arrêter :
+  To stop it:
     launchctl unload ~/Library/LaunchAgents/com.hermes.llama-server.plist
 -->
 <plist version="1.0">

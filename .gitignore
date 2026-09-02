@@ -3,14 +3,14 @@
 *.env
 !*.env.example
 
-# Modèles GGUF (trop volumineux pour git — téléchargés par les scripts)
+# GGUF models (too large for git — downloaded by the scripts)
 *.gguf
 linux-x86_64-vps/models/*
 !linux-x86_64-vps/models/.gitkeep
 macos-arm64/models/*
 !macos-arm64/models/.gitkeep
 
-# État persistant Hermes (mémoire, sessions, skills, config.yaml réel)
+# Persistent Hermes state (memory, sessions, skills, real config.yaml)
 **/.hermes/
 **/data/
 
@@ -19,9 +19,6 @@ macos-arm64/models/*
 macos-arm64/llama-server.log
 macos-arm64/vendor/
 
-# Build local llama.cpp (si construit par find-or-build-llama-server.sh)
-
-
-# Éditeurs
+# Editors
 .vscode/
 .idea/

@@ -1,46 +1,46 @@
 # Hermes Agent + llama.cpp — macOS Apple Silicon (ARM64)
 
-`llama-server` tourne **en natif** sur le Mac pour profiter de l'accélération
-GPU **Metal** — Docker Desktop pour Mac ne sait pas exposer le GPU Metal à un
-conteneur (les conteneurs Linux qu'il fait tourner n'y ont pas accès), donc le
-faire tourner en Docker ferait retomber l'inférence sur le CPU, sans intérêt.
-**Hermes**, lui, n'a pas besoin de GPU (c'est juste le harnais qui appelle le
-modèle en HTTP) : il tourne dans un conteneur Docker `linux/arm64`, et joint
-`llama-server` via `host.docker.internal`.
+`llama-server` runs **natively** on the Mac to take advantage of **Metal** GPU
+acceleration — Docker Desktop for Mac cannot expose the Metal GPU to a
+container (the Linux containers it runs have no access to it), so running it
+in Docker would fall back to CPU-only inference, defeating the purpose.
+**Hermes**, on the other hand, doesn't need a GPU (it's just the harness that
+calls the model over HTTP): it runs in a `linux/arm64` Docker container and
+reaches `llama-server` via `host.docker.internal`.
 
 ```
 ┌─────────────────────────────── Mac (Apple Silicon) ───────────────────────────────┐
 │                                                                                    │
-│   llama-server (natif, Metal)          http://host.docker.internal:8080/v1        │
+│   llama-server (native, Metal)         http://host.docker.internal:8080/v1        │
 │   scripts/run-llama-server.sh  ◄─────────────────────────────────┐                │
 │         │                                                        │                │
 │         ▼                                                ┌───────┴───────┐        │
-│    modèle .gguf (./models)                               │ Docker Desktop│        │
+│    .gguf model (./models)                                │ Docker Desktop│        │
 │                                                            │  ┌─────────┐  │        │
 │                                                            │  │ hermes  │  │        │
 │                                                            │  │(arm64)  │  │        │
 │                                                            │  └────┬────┘  │        │
 │                                                            └───────┼───────┘        │
 │                                                                    ▼                │
-│                                                        ./data (mémoire, skills)     │
+│                                                        ./data (memory, skills)      │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                                                      │
                                                                      ▼
                                                               Telegram (bot)
 ```
 
-## Prérequis
+## Prerequisites
 
-- Un Mac Apple Silicon (M1/M2/M3/M4...).
-- [Docker Desktop pour Mac](https://www.docker.com/products/docker-desktop/) — uniquement pour le conteneur `hermes`.
-- Xcode Command Line Tools + CMake, **seulement** si aucun `llama-server` n'est
-  déjà disponible sur la machine (`xcode-select --install`, `brew install cmake`).
-- Un bot Telegram — voir [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
+- An Apple Silicon Mac (M1/M2/M3/M4...).
+- [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) — only used for the `hermes` container.
+- Xcode Command Line Tools + CMake, **only** if no `llama-server` is already
+  available on the machine (`xcode-select --install`, `brew install cmake`).
+- A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
 
-> Ce dépôt sait réutiliser un `llama-server` déjà compilé — voir
-> [`scripts/find-or-build-llama-server.sh`](scripts/find-or-build-llama-server.sh) :
-> il regarde `LLAMA_SERVER_BIN`, puis `~/Documents/Code/llama.cpp/build/bin/llama-server`,
-> puis `brew install llama.cpp`, et ne clone/compile dans `./vendor` qu'en dernier recours.
+> This repo knows how to reuse an already-built `llama-server` — see
+> [`scripts/find-or-build-llama-server.sh`](scripts/find-or-build-llama-server.sh):
+> it checks `LLAMA_SERVER_BIN`, then `~/Documents/Code/llama.cpp/build/bin/llama-server`,
+> then `brew install llama.cpp`, and only clones/builds into `./vendor` as a last resort.
 
 ## Installation
 
@@ -50,89 +50,88 @@ cd Hermes/macos-arm64
 cp .env.example .env
 ```
 
-Éditer `.env` : au minimum `TELEGRAM_BOT_TOKEN` et `TELEGRAM_ALLOWED_USERS`
-(détails dans [`../shared/telegram-setup.md`](../shared/telegram-setup.md)).
+Edit `.env`: at minimum `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS`
+(details in [`../shared/telegram-setup.md`](../shared/telegram-setup.md)).
 
 ```bash
-./scripts/download-model.sh          # télécharge le modèle par défaut dans ./models
+./scripts/download-model.sh          # downloads the default model into ./models
 mkdir -p data
 cp config/config.yaml.example data/config.yaml
 ```
 
-## Démarrage
+## Starting
 
-**Terminal 1 — le modèle, en natif :**
+**Terminal 1 — the model, natively:**
 
 ```bash
 ./scripts/run-llama-server.sh
-# ==> Binaire : /Users/xxx/Documents/Code/llama.cpp/build/bin/llama-server (ou reconstruit)
-# ==> Modèle  : .../models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
-# ggml_metal_device_init: GPU name: Apple M... 
+# ==> Binary: /Users/xxx/Documents/Code/llama.cpp/build/bin/llama-server (or freshly built)
+# ==> Model : .../models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+# ggml_metal_device_init: GPU name: Apple M...
 # server is listening on http://127.0.0.1:8080
 ```
 
-Garder ce terminal ouvert (ou l'installer comme service en arrière-plan, voir
-plus bas).
+Keep this terminal open (or install it as a background service, see below).
 
-**Terminal 2 — Hermes, dans Docker :**
+**Terminal 2 — Hermes, in Docker:**
 
 ```bash
 docker compose up -d
 docker compose logs -f hermes
 ```
 
-Puis, **une seule fois**, brancher Telegram :
+Then, **once**, wire up Telegram:
 
 ```bash
 docker compose exec hermes hermes gateway setup
 ```
 
-## Vérification
+## Verification
 
 ```bash
 curl http://127.0.0.1:8080/health          # llama-server
 docker compose exec hermes hermes doctor   # hermes
 ```
 
-Sur Telegram, envoyer un message au bot : « tu m'entends ? ». Une réponse
-confirme la chaîne complète : Telegram → conteneur hermes →
-`host.docker.internal:8080` → `llama-server` (Metal) → modèle → retour.
+On Telegram, send the bot a message: "can you hear me?". A reply confirms
+the whole chain works: Telegram → hermes container →
+`host.docker.internal:8080` → `llama-server` (Metal) → model → back.
 
-## Faire tourner `llama-server` en arrière-plan (optionnel)
+## Running `llama-server` in the background (optional)
 
-Pour ne pas garder un terminal ouvert en permanence, un modèle de service
-`launchd` est fourni :
+To avoid keeping a terminal open at all times, a `launchd` service template
+is provided:
 
 ```bash
 cp scripts/com.hermes.llama-server.plist.example \
    ~/Library/LaunchAgents/com.hermes.llama-server.plist
-# éditer les 3 occurrences de REPLACE_WITH_REPO_PATH dans ce fichier
+# edit the 3 occurrences of REPLACE_WITH_REPO_PATH in that file
 launchctl load ~/Library/LaunchAgents/com.hermes.llama-server.plist
 ```
 
-Logs : `tail -f macos-arm64/llama-server.log`. Pour l'arrêter :
+Logs: `tail -f macos-arm64/llama-server.log`. To stop it:
 `launchctl unload ~/Library/LaunchAgents/com.hermes.llama-server.plist`.
 
-## Opérations courantes
+## Common operations
 
 ```bash
 docker compose restart hermes
 docker compose exec hermes hermes doctor --fix
-docker compose down                        # arrête hermes (./data et ./models persistent)
+docker compose down                        # stops hermes (./data and ./models persist)
 ```
 
-## Dépannage
+## Troubleshooting
 
-| Symptôme | Piste |
+| Symptom | What to check |
 |---|---|
-| `Connection refused` depuis le conteneur hermes | `llama-server` n'est pas lancé, ou lié à une autre interface — vérifier `./scripts/run-llama-server.sh` en terminal 1 |
-| Réponse très lente / tout en CPU | Vérifier que le binaire utilisé a bien été compilé avec `GGML_METAL=ON` (`grep METAL` dans son `CMakeCache.txt`, ou les logs de démarrage doivent mentionner `ggml_metal_device_init`) |
-| Outils renvoyés en JSON texte au lieu de s'exécuter | Le flag `--jinja` manque au lancement de `llama-server` (déjà inclus dans `run-llama-server.sh`) |
-| `docker: no matching manifest for linux/arm64` | Image `hermes-agent` obsolète en cache — `docker compose pull` |
+| `Connection refused` from the hermes container | `llama-server` isn't running, or bound to the wrong interface — check `./scripts/run-llama-server.sh` in terminal 1 |
+| Very slow replies / all-CPU | Verify the binary in use was actually built with `GGML_METAL=ON` (`grep METAL` in its `CMakeCache.txt`, or the startup logs should mention `ggml_metal_device_init`) |
+| Tool calls come back as JSON text instead of running | The `--jinja` flag is missing when launching `llama-server` (already included in `run-llama-server.sh`) |
+| `docker: no matching manifest for linux/arm64` | Stale cached `hermes-agent` image — `docker compose pull` |
 
 ## Sources
 
-- Support Metal de llama.cpp : [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
-- Image et volumes Hermes (multi-arch amd64/arm64 confirmé sur Docker Hub) : [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
-- Provider `custom` / `config.yaml` : [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
-- `host.docker.internal` sur Docker Desktop Mac : [documentation Docker officielle](https://docs.docker.com/desktop/networking/)
+- llama.cpp Metal support: [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
+- Hermes image and volumes (multi-arch amd64/arm64 confirmed on Docker Hub): [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
+- `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
+- `host.docker.internal` on Docker Desktop for Mac: [official Docker documentation](https://docs.docker.com/desktop/networking/)

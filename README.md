@@ -1,73 +1,72 @@
 # Hermes
 
-Déploiement de [Hermes Agent](https://github.com/NousResearch/hermes-agent)
-(l'agent IA open source auto-hébergé de Nous Research) branché sur un LLM
-**local** servi par [llama.cpp](https://github.com/ggml-org/llama.cpp) —
-aucune clé API externe, aucune donnée envoyée à un service tiers, tout tourne
-sur du matériel qu'on possède ou qu'on loue.
+Deployment of [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+(Nous Research's open-source, self-hosted AI agent) wired to a **local** LLM
+served by [llama.cpp](https://github.com/ggml-org/llama.cpp) — no external
+API key, no data sent to a third-party service, everything runs on hardware
+you own or rent.
 
-Deux configurations complètes, indépendantes l'une de l'autre :
+Two complete configurations, independent from each other:
 
-| Configuration | Où | llama.cpp | Hermes | Guide |
+| Configuration | Where | llama.cpp | Hermes | Guide |
 |---|---|---|---|---|
-| **macOS ARM64** | Un Mac Apple Silicon | natif (accélération Metal) | Docker (`linux/arm64`) | [`macos-arm64/`](macos-arm64/) |
-| **Linux x86-64** | Un VPS loué | Docker (CPU) | Docker (`linux/amd64`) | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
+| **macOS ARM64** | An Apple Silicon Mac | native (Metal acceleration) | Docker (`linux/arm64`) | [`macos-arm64/`](macos-arm64/) |
+| **Linux x86-64** | A rented VPS | Docker (CPU) | Docker (`linux/amd64`) | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
 
-Les deux branchent Hermes sur Telegram (voir
-[`shared/telegram-setup.md`](shared/telegram-setup.md)) et servent par défaut
-le même modèle, **Qwen2.5-Coder-7B-Instruct** en `Q4_K_M` (voir
-[`shared/model-notes.md`](shared/model-notes.md) pour en changer).
+Both wire Hermes to Telegram (see
+[`shared/telegram-setup.md`](shared/telegram-setup.md)) and serve the same
+model by default, **Qwen2.5-Coder-7B-Instruct** in `Q4_K_M` (see
+[`shared/model-notes.md`](shared/model-notes.md) to change it).
 
-## Pourquoi llama.cpp en natif sur Mac mais en Docker sur le VPS ?
+## Why llama.cpp native on Mac but in Docker on the VPS?
 
-Docker Desktop pour Mac ne peut pas exposer le GPU Metal à un conteneur —
-y faire tourner `llama-server` le condamnerait au CPU. Sur un Mac, on le lance
-donc en natif (accès Metal complet), et seul Hermes — qui n'a besoin que
-d'appeler une API HTTP, pas de GPU — tourne en Docker. Sur un VPS Linux
-classique (sans GPU dédié), cette distinction n'a pas lieu d'être : tout tient
-proprement dans `docker-compose.yml`, llama.cpp compris.
+Docker Desktop for Mac cannot expose the Metal GPU to a container — running
+`llama-server` inside it would fall back to CPU-only inference. On a Mac, it
+therefore runs natively (full Metal access), while only Hermes — which just
+needs to call an HTTP API, no GPU required — runs in Docker. On a regular
+Linux VPS (no dedicated GPU), this distinction doesn't apply: everything fits
+cleanly inside `docker-compose.yml`, llama.cpp included.
 
-## Pourquoi ce modèle par défaut ?
+## Why this default model?
 
-Hermes exige au moins 64 000 tokens de contexte pour fonctionner (mémoire +
-outils + historique à chaque appel), et les appels d'outils ne s'exécutent
-qu'avec le flag `--jinja` de llama.cpp — les deux points, faciles à manquer,
-sont expliqués et déjà réglés dans les deux configurations. Voir
+Hermes requires at least 64,000 tokens of context to work properly (memory +
+tools + history are sent on every call), and tool calls only execute with
+llama.cpp's `--jinja` flag — both easy-to-miss points are explained and
+already handled in both configurations. See
 [`shared/model-notes.md`](shared/model-notes.md).
 
-## Démarrage rapide
+## Quick start
 
 ```bash
 git clone https://github.com/ka8t/Hermes.git
 cd Hermes
 
-# Sur un Mac Apple Silicon
+# On an Apple Silicon Mac
 cd macos-arm64 && cat README.md
 
-# Sur un VPS Linux x86-64
+# On a Linux x86-64 VPS
 cd linux-x86_64-vps && cat README.md
 ```
 
-## Structure du dépôt
+## Repository structure
 
 ```
 Hermes/
-├── macos-arm64/          # llama.cpp natif (Metal) + Hermes en Docker
-├── linux-x86_64-vps/     # llama.cpp + Hermes, tous deux en Docker Compose
+├── macos-arm64/          # native llama.cpp (Metal) + Hermes in Docker
+├── linux-x86_64-vps/     # llama.cpp and Hermes, both in Docker Compose
 └── shared/
-    ├── telegram-setup.md # création du bot, variables d'environnement
-    └── model-notes.md    # choix du modèle GGUF, contraintes de contexte
+    ├── telegram-setup.md # bot creation, environment variables
+    └── model-notes.md    # GGUF model choice, context constraints
 ```
 
-## Sécurité
+## Security
 
-Aucun secret n'est commité : `.env` est ignoré par git (seuls les
-`.env.example` le sont), de même que les modèles `.gguf` (trop volumineux) et
-l'état persistant d'Hermes (`data/`, mémoire et sessions comprises). Voir
-`.gitignore`.
+No secrets are committed: `.env` is git-ignored (only `.env.example` files
+are tracked), as is any `.gguf` model (too large) and Hermes's persistent
+state (`data/`, including memory and sessions). See `.gitignore`.
 
 ## Sources
 
-- Hermes Agent — dépôt officiel : https://github.com/NousResearch/hermes-agent
-- Documentation officielle : https://hermes-agent.nousresearch.com/docs/
-- llama.cpp — dépôt officiel : https://github.com/ggml-org/llama.cpp
+- Hermes Agent — official repository: https://github.com/NousResearch/hermes-agent
+- Official documentation: https://hermes-agent.nousresearch.com/docs/
+- llama.cpp — official repository: https://github.com/ggml-org/llama.cpp

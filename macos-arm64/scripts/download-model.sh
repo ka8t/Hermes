@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Télécharge le modèle GGUF par défaut dans ./models s'il est absent.
-# Voir ../../shared/model-notes.md pour changer de modèle.
+# Downloads the default GGUF model into ./models if it's missing.
+# See ../../shared/model-notes.md to use a different model.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -11,13 +11,13 @@ MODEL_REPO="${MODEL_REPO:-Qwen/Qwen2.5-Coder-7B-Instruct-GGUF}"
 mkdir -p models
 
 if [ -f "models/${MODEL_FILE}" ]; then
-  echo "Modèle déjà présent : models/${MODEL_FILE}"
+  echo "Model already present: models/${MODEL_FILE}"
   exit 0
 fi
 
-echo "Téléchargement de ${MODEL_FILE} depuis ${MODEL_REPO}..."
+echo "Downloading ${MODEL_FILE} from ${MODEL_REPO}..."
 curl -fL --progress-bar \
   "https://huggingface.co/${MODEL_REPO}/resolve/main/${MODEL_FILE}" \
   -o "models/${MODEL_FILE}.part"
 mv "models/${MODEL_FILE}.part" "models/${MODEL_FILE}"
-echo "OK : models/${MODEL_FILE}"
+echo "OK: models/${MODEL_FILE}"

@@ -11,12 +11,12 @@ services:
       - ./data:/opt/data
     ports:
       - "8642:8642"   # gateway
-      - "9119:9119"   # tableau de bord web (si HERMES_DASHBOARD=1)
+      - "9119:9119"   # web dashboard (if HERMES_DASHBOARD=1)
     extra_hosts:
-      # Docker Desktop pour Mac le résout déjà tout seul ; cette ligne rend
-      # le fichier portable si un jour vous le lancez sur du Docker Linux natif.
+      # Docker Desktop for Mac already resolves this on its own; this line
+      # keeps the file portable if you ever run it on native Linux Docker.
       - "host.docker.internal:host-gateway"
 
-# NB : llama-server n'est volontairement PAS ici — il tourne en natif sur le
-# Mac (scripts/run-llama-server.sh) pour garder l'accélération GPU Metal, que
-# Docker Desktop pour Mac ne peut pas exposer à un conteneur. Voir README.md.
+# NB: llama-server is intentionally NOT here — it runs natively on the Mac
+# (scripts/run-llama-server.sh) to keep Metal GPU acceleration, which Docker
+# Desktop for Mac cannot expose to a container. See README.md.

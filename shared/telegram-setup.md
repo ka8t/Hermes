@@ -1,72 +1,73 @@
-# Connexion Telegram
+# Telegram setup
 
-Commune aux deux configurations (macOS et VPS Linux) : Hermes ne parle à Telegram
-qu'une fois un bot créé et ses identifiants renseignés dans `.env`.
+Common to both configurations (macOS and Linux VPS): Hermes only talks to
+Telegram once a bot has been created and its credentials filled into `.env`.
 
-## 1. Créer le bot avec @BotFather
+## 1. Create the bot with @BotFather
 
-1. Ouvrir Telegram, chercher **@BotFather**, envoyer `/newbot`.
-2. Donner un nom d'affichage, puis un nom d'utilisateur se terminant par `bot`
-   (ex. `mon-hermes-bot`).
-3. BotFather répond avec un token du type :
+1. Open Telegram, search for **@BotFather**, send `/newbot`.
+2. Give it a display name, then a username ending in `bot`
+   (e.g. `my-hermes-bot`).
+3. BotFather replies with a token that looks like:
    `123456789:ABCdefGHIjklMNOpqrSTUvwxYZ`
-   → c'est la valeur de `TELEGRAM_BOT_TOKEN`.
+   → this is the value for `TELEGRAM_BOT_TOKEN`.
 
-## 2. Récupérer son identifiant Telegram
+## 2. Get your Telegram user ID
 
-1. Chercher **@userinfobot** sur Telegram, lui envoyer n'importe quel message.
-2. Il répond avec un `Id` numérique → c'est la valeur de `TELEGRAM_ALLOWED_USERS`.
-3. Sans cette liste blanche, n'importe qui qui trouve le bot peut lui écrire.
+1. Search for **@userinfobot** on Telegram, send it any message.
+2. It replies with a numeric `Id` → this is the value for
+   `TELEGRAM_ALLOWED_USERS`.
+3. Without this allow-list, anyone who finds the bot can message it.
 
-## 3. Renseigner `.env`
+## 3. Fill in `.env`
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TELEGRAM_ALLOWED_USERS=123456789
 ```
 
-Variables optionnelles utiles (voir la doc officielle) :
+Useful optional variables (see the official docs):
 
 ```bash
-# Canal où Hermes livre les résultats des cron jobs et messages proactifs
+# Channel where Hermes delivers cron job results and proactive messages
 TELEGRAM_HOME_CHANNEL=-1001234567890
-TELEGRAM_HOME_CHANNEL_NAME="Mon agent"
+TELEGRAM_HOME_CHANNEL_NAME="My assistant"
 
-# Pour un groupe plutôt qu'une conversation privée
+# For a group instead of a private chat
 TELEGRAM_GROUP_ALLOWED_USERS=987654321
 TELEGRAM_GROUP_ALLOWED_CHATS=-1001234567890
 ```
 
-## 4. Activer le canal côté Hermes
+## 4. Enable the channel on the Hermes side
 
-Une fois le conteneur démarré (voir le README de chaque plateforme), lancer
-l'assistant interactif une seule fois :
+Once the container is running (see each platform's README), run the
+interactive wizard once:
 
 ```bash
 docker compose exec hermes hermes gateway setup
-# -> choisir "Telegram"
-# -> confirmer que le token est bien lu depuis .env
+# -> pick "Telegram"
+# -> confirm the token is correctly read from .env
 ```
 
-Ou, si l'agent tourne déjà et que `.env` contient les bonnes valeurs, un simple
-redémarrage de la passerelle suffit :
+Or, if the agent is already running and `.env` already has the right values,
+a simple gateway restart is enough:
 
 ```bash
 docker compose exec hermes hermes gateway restart
 docker compose exec hermes hermes gateway status
 ```
 
-## 5. Vérifier
+## 5. Verify
 
-1. Ouvrir la conversation avec le bot sur Telegram, taper `/start` (ouvre juste
-   la conversation, ce n'est pas une vraie commande) puis envoyer un message,
-   par exemple « tu m'entends ? ».
-2. Si Hermes répond « Aucun canal principal n'est défini pour Telegram »,
-   envoyer la commande `/set home` pour que ce canal reçoive aussi les
-   notifications proactives (cron, tâches de fond).
+1. Open the chat with the bot on Telegram, tap `/start` (this just opens the
+   chat, it isn't a real command), then send a message, e.g. "can you hear
+   me?".
+2. If Hermes replies "No home channel set for Telegram", send the
+   `/set home` command so this channel also receives proactive notifications
+   (cron jobs, background tasks).
 
-Source : documentation officielle Hermes Agent —
+Source: official Hermes Agent documentation —
 [hermes-agent.nousresearch.com/docs/user-guide/messaging](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/)
-(variables d'environnement Telegram détaillées dans le fichier
+(Telegram environment variables detailed in
 [`telegram.md`](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/messaging/telegram.md)
-du dépôt officiel).
+in the official repository).

@@ -35,4 +35,4 @@ services:
       - ./data:/opt/data
     ports:
       - "8642:8642"   # gateway
-      - "9119:9119"   # tableau de bord web (si HERMES_DASHBOARD=1)
+      - "9119:9119"   # web dashboard (if HERMES_DASHBOARD=1)

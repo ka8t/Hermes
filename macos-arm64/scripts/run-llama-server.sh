@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Lance llama-server en natif (Metal), lié à 127.0.0.1 pour que seul le
-# conteneur hermes (via host.docker.internal) et cette machine y accèdent.
+# Runs llama-server natively (Metal), bound to 127.0.0.1 so that only the
+# hermes container (via host.docker.internal) and this machine can reach it.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -11,15 +11,15 @@ LLAMA_PORT="${LLAMA_PORT:-8080}"
 
 MODEL_PATH="$(pwd)/models/${MODEL_FILE}"
 if [ ! -f "${MODEL_PATH}" ]; then
-  echo "Modèle introuvable : ${MODEL_PATH}" >&2
-  echo "Lancez d'abord : ./scripts/download-model.sh" >&2
+  echo "Model not found: ${MODEL_PATH}" >&2
+  echo "Run ./scripts/download-model.sh first" >&2
   exit 1
 fi
 
 LLAMA_SERVER_BIN="$(./scripts/find-or-build-llama-server.sh)"
-echo "==> Binaire : ${LLAMA_SERVER_BIN}"
-echo "==> Modèle  : ${MODEL_PATH}"
-echo "==> Contexte: ${LLAMA_CTX_SIZE} tokens — port ${LLAMA_PORT}"
+echo "==> Binary : ${LLAMA_SERVER_BIN}"
+echo "==> Model  : ${MODEL_PATH}"
+echo "==> Context: ${LLAMA_CTX_SIZE} tokens — port ${LLAMA_PORT}"
 
 exec "${LLAMA_SERVER_BIN}" \
   -m "${MODEL_PATH}" \
