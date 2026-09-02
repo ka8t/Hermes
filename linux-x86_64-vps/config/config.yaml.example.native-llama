@@ -1,0 +1,13 @@
+# Use this instead of config.yaml.example when llama-server runs natively
+# (systemd, prebuilt binary) rather than as a container — see README.md,
+# "Alternative: native llama.cpp (no Docker)". Copy to ./data/config.yaml.
+#
+# There is no "llama-server" service in this setup, so the hostname trick
+# from the Docker-only version doesn't apply; host.docker.internal (see
+# docker-compose.native-llama.yml's extra_hosts) resolves to the VPS itself.
+
+model:
+  default: qwen2.5-coder-7b-instruct
+  provider: custom
+  base_url: http://host.docker.internal:8080/v1
+  context_length: 65536

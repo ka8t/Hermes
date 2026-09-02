@@ -1,0 +1,28 @@
+# Alternative to docker-compose.yml: use this ONE INSTEAD (not alongside)
+# when llama-server runs natively as a systemd service (prebuilt binary)
+# rather than in its own container — see README.md, "Alternative: native
+# llama.cpp (no Docker)".
+#
+#   docker compose -f docker-compose.native-llama.yml up -d
+#
+# Only the hermes service is defined here; point data/config.yaml's
+# base_url at host.docker.internal instead of llama-server (see
+# config/config.yaml.example.native-llama).
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    env_file:
+      - .env
+    volumes:
+      - ./data:/opt/data
+    ports:
+      - "8642:8642"   # gateway
+      - "9119:9119"   # web dashboard (if HERMES_DASHBOARD=1)
+    extra_hosts:
+      # Makes host.docker.internal resolve to the VPS itself, exactly like
+      # Docker Desktop does on Mac — needs Docker Engine 20.10+ (default on
+      # any Ubuntu 22.04+ install via get.docker.com).
+      - "host.docker.internal:host-gateway"

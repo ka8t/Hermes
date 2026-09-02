@@ -33,14 +33,19 @@ reaches `llama-server` via `host.docker.internal`.
 
 - An Apple Silicon Mac (M1/M2/M3/M4...).
 - [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) — only used for the `hermes` container.
-- Xcode Command Line Tools + CMake, **only** if no `llama-server` is already
-  available on the machine (`xcode-select --install`, `brew install cmake`).
+- **No compiler needed**: `llama-server` is fetched as an official prebuilt
+  binary (Metal included) by default — see
+  [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md). Xcode
+  Command Line Tools + CMake are only required if you force a from-source
+  build (`LLAMA_BUILD_FROM_SOURCE=1`).
 - A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
 
-> This repo knows how to reuse an already-built `llama-server` — see
-> [`scripts/find-or-build-llama-server.sh`](scripts/find-or-build-llama-server.sh):
-> it checks `LLAMA_SERVER_BIN`, then `~/Documents/Code/llama.cpp/build/bin/llama-server`,
-> then `brew install llama.cpp`, and only clones/builds into `./vendor` as a last resort.
+> [`scripts/find-or-build-llama-server.sh`](scripts/find-or-build-llama-server.sh)
+> picks, in order: an explicit `LLAMA_SERVER_BIN` override, an already-built
+> `~/Documents/Code/llama.cpp/build/bin/llama-server`, a Homebrew install, the
+> **official prebuilt binary** (default — see
+> [`scripts/download-prebuilt-llama-server.sh`](scripts/download-prebuilt-llama-server.sh)),
+> and only clones + builds into `./vendor` as a last resort.
 
 ## Installation
 
@@ -65,11 +70,15 @@ cp config/config.yaml.example data/config.yaml
 
 ```bash
 ./scripts/run-llama-server.sh
-# ==> Binary: /Users/xxx/Documents/Code/llama.cpp/build/bin/llama-server (or freshly built)
-# ==> Model : .../models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+# ==> Looking up the latest bin-macos-arm64.tar.gz release on GitHub...
+# ==> Binary : .../vendor/llama.cpp-prebuilt/current/llama-server
+# ==> Model  : .../models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
 # ggml_metal_device_init: GPU name: Apple M...
 # server is listening on http://127.0.0.1:8080
 ```
+
+(the first run downloads the prebuilt binary — a few seconds; later runs
+reuse the cached copy under `./vendor`)
 
 Keep this terminal open (or install it as a background service, see below).
 
@@ -125,12 +134,13 @@ docker compose down                        # stops hermes (./data and ./models p
 | Symptom | What to check |
 |---|---|
 | `Connection refused` from the hermes container | `llama-server` isn't running, or bound to the wrong interface — check `./scripts/run-llama-server.sh` in terminal 1 |
-| Very slow replies / all-CPU | Verify the binary in use was actually built with `GGML_METAL=ON` (`grep METAL` in its `CMakeCache.txt`, or the startup logs should mention `ggml_metal_device_init`) |
+| Very slow replies / all-CPU | The startup logs should mention `ggml_metal_device_init` (true for both the prebuilt binary and a from-source build with `GGML_METAL=ON`) — if it's missing, check which binary `find-or-build-llama-server.sh` actually picked |
 | Tool calls come back as JSON text instead of running | The `--jinja` flag is missing when launching `llama-server` (already included in `run-llama-server.sh`) |
 | `docker: no matching manifest for linux/arm64` | Stale cached `hermes-agent` image — `docker compose pull` |
 
 ## Sources
 
+- Prebuilt binaries (what's inside, how they're fetched): [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md)
 - llama.cpp Metal support: [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - Hermes image and volumes (multi-arch amd64/arm64 confirmed on Docker Hub): [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
 - `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)

@@ -102,6 +102,52 @@ docker compose down                  # stop (data persists in ./data and ./model
 docker compose pull && docker compose up -d   # update images
 ```
 
+## Alternative: native llama.cpp (prebuilt binary, no Docker)
+
+If you'd rather not run `llama-server` in a container at all — e.g. to run
+it as a plain systemd service, or to skip the `ghcr.io/ggml-org/llama.cpp`
+image entirely — use the official prebuilt Linux binary instead, and keep
+only `hermes` in Docker:
+
+```bash
+./scripts/download-prebuilt-llama-server.sh
+# ==> Ready: .../vendor/llama.cpp-prebuilt/current/llama-server
+```
+
+See [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md) for
+what this binary actually contains (it auto-dispatches to the best CPU
+microarchitecture at startup, so no manual `-march=native` tuning needed).
+
+Run it directly for a quick test:
+
+```bash
+cd vendor/llama.cpp-prebuilt/current
+./llama-server -m ../../../models/qwen2.5-coder-7b-instruct-q4_k_m.gguf \
+  --host 127.0.0.1 --port 8080 -c 65536 -t 2 --jinja
+```
+
+Or install it as a persistent systemd service:
+
+```bash
+cp scripts/llama-server.service.example /etc/systemd/system/llama-server.service
+# edit the REPLACE_WITH_REPO_PATH occurrences
+systemctl daemon-reload
+systemctl enable --now llama-server
+```
+
+Then start **only** the `hermes` container, using the alternate compose file
+that resolves `host.docker.internal` to the VPS itself instead of a
+`llama-server` service:
+
+```bash
+cp config/config.yaml.example.native-llama data/config.yaml
+docker compose -f docker-compose.native-llama.yml up -d
+docker compose -f docker-compose.native-llama.yml exec hermes hermes gateway setup
+```
+
+Don't run `docker-compose.yml` and `docker-compose.native-llama.yml` at the
+same time — they both define a `hermes` container on the same ports.
+
 ## Troubleshooting
 
 | Symptom | What to check |
@@ -113,6 +159,7 @@ docker compose pull && docker compose up -d   # update images
 
 ## Sources
 
+- Prebuilt binaries (what's inside, how they're fetched): [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md)
 - llama.cpp image and flags: [ggml-org/llama.cpp — docs/docker.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md)
 - Hermes image and volumes: [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
 - `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)

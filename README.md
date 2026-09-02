@@ -14,9 +14,13 @@ Two complete configurations, independent from each other:
 | **Linux x86-64** | A rented VPS | Docker (CPU) | Docker (`linux/amd64`) | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
 
 Both wire Hermes to Telegram (see
-[`shared/telegram-setup.md`](shared/telegram-setup.md)) and serve the same
-model by default, **Qwen2.5-Coder-7B-Instruct** in `Q4_K_M` (see
-[`shared/model-notes.md`](shared/model-notes.md) to change it).
+[`shared/telegram-setup.md`](shared/telegram-setup.md)), serve the same
+model by default — **Qwen2.5-Coder-7B-Instruct** in `Q4_K_M` (see
+[`shared/model-notes.md`](shared/model-notes.md) to change it) — and default
+to llama.cpp's **official prebuilt binaries** rather than building from
+source (see [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md)).
+The VPS guide also documents a no-Docker alternative for `llama-server`
+using that same prebuilt binary as a systemd service.
 
 ## Why llama.cpp native on Mac but in Docker on the VPS?
 
@@ -54,9 +58,11 @@ cd linux-x86_64-vps && cat README.md
 Hermes/
 ├── macos-arm64/          # native llama.cpp (Metal) + Hermes in Docker
 ├── linux-x86_64-vps/     # llama.cpp and Hermes, both in Docker Compose
+│                         # (+ a no-Docker/systemd alternative for llama.cpp)
 └── shared/
-    ├── telegram-setup.md # bot creation, environment variables
-    └── model-notes.md    # GGUF model choice, context constraints
+    ├── telegram-setup.md      # bot creation, environment variables
+    ├── model-notes.md         # GGUF model choice, context constraints
+    └── prebuilt-binaries.md   # official llama.cpp binaries, per platform
 ```
 
 ## Security

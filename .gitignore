@@ -14,10 +14,13 @@ macos-arm64/models/*
 **/.hermes/
 **/data/
 
+# Downloaded/built llama.cpp binaries (prebuilt archives or from-source builds)
+macos-arm64/vendor/
+linux-x86_64-vps/vendor/
+
 # macOS
 .DS_Store
 macos-arm64/llama-server.log
-macos-arm64/vendor/
 
 # Editors
 .vscode/
