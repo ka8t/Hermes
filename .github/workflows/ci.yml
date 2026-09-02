@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint (bash + YAML + config consistency)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+      - run: ./test/lint.sh
+
+  smoke-vps:
+    name: Smoke test (linux-x86_64-vps model serving)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./test/smoke-vps.sh
+
+  # smoke-macos intentionally has no CI job: it requires real Apple Silicon
+  # (Metal) and GitHub-hosted macOS runners don't provide it. Run it
+  # yourself on a Mac — see test/README.md.
