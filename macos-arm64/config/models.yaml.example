@@ -1,0 +1,22 @@
+# Copy this to ./data/models.yaml BEFORE the first `./scripts/run-llama-swap.sh`
+# (see ../../shared/managing-models.md for how to add/remove models — this
+# file is watched and reloaded live, no restart needed).
+#
+# ${env.LLAMA_SERVER_BIN}, ${env.MODELS_DIR}, ${env.MODEL_FILE} and
+# ${env.LLAMA_CTX_SIZE} come from run-llama-swap.sh, which exports them
+# (as absolute paths) before starting llama-swap.
+# ${PORT} is llama-swap's own macro: a free port it assigns automatically
+# to this model's llama-server process.
+
+healthCheckTimeout: 120
+
+models:
+  "qwen2.5-coder-7b":
+    name: "Qwen2.5 Coder 7B (default)"
+    cmd: |
+      ${env.LLAMA_SERVER_BIN} --port ${PORT}
+      --model ${env.MODELS_DIR}/${env.MODEL_FILE}
+      --ctx-size ${env.LLAMA_CTX_SIZE}
+      -ngl 99
+      --jinja
+    ttl: 600

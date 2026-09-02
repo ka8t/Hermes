@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provisions a fresh Ubuntu 22.04+/x86-64 VPS for this stack
-# (llama.cpp + Hermes Agent, both in Docker).
+# (llama-swap + llama.cpp + Hermes Agent, all three in Docker).
 #
 # Run this once, as root, on the VPS:
 #   curl -fsSL https://raw.githubusercontent.com/ka8t/Hermes/main/linux-x86_64-vps/provision.sh | bash
@@ -32,6 +32,11 @@ if [ ! -f data/config.yaml ]; then
   echo "==> data/config.yaml initialized from config/config.yaml.example"
 fi
 
+if [ ! -f data/models.yaml ]; then
+  cp config/models.yaml.example data/models.yaml
+  echo "==> data/models.yaml initialized from config/models.yaml.example"
+fi
+
 MODEL_FILE="$(grep -E '^MODEL_FILE=' .env | cut -d= -f2)"
 MODEL_FILE="${MODEL_FILE:-qwen2.5-coder-7b-instruct-q4_k_m.gguf}"
 
@@ -46,7 +51,8 @@ fi
 
 echo ""
 echo "Provisioning done. Remaining steps:"
-echo "  1. Edit .env (TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS — see ../shared/telegram-setup.md)"
+echo "  1. Edit .env (TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS, and"
+echo "     HERMES_DASHBOARD_BASIC_AUTH_USERNAME/_PASSWORD — see ../shared/telegram-setup.md)"
 echo "  2. docker compose up -d"
-echo "  3. docker compose logs -f llama-server   # wait for 'server is listening'"
+echo "  3. docker compose logs -f llama-swap   # wait for it to report healthy"
 echo "  4. docker compose exec hermes hermes gateway setup   # once, for Telegram"

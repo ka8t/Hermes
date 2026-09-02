@@ -20,7 +20,7 @@ linux-x86_64-vps/vendor/
 
 # macOS
 .DS_Store
-macos-arm64/llama-server.log
+macos-arm64/llama-swap.log
 
 # Editors
 .vscode/

@@ -17,6 +17,7 @@ services:
       # keeps the file portable if you ever run it on native Linux Docker.
       - "host.docker.internal:host-gateway"
 
-# NB: llama-server is intentionally NOT here — it runs natively on the Mac
-# (scripts/run-llama-server.sh) to keep Metal GPU acceleration, which Docker
-# Desktop for Mac cannot expose to a container. See README.md.
+# NB: llama-swap / llama-server are intentionally NOT here — they run
+# natively on the Mac (scripts/run-llama-swap.sh) to keep Metal GPU
+# acceleration, which Docker Desktop for Mac cannot expose to a container.
+# See README.md.

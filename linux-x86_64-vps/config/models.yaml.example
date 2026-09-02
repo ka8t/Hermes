@@ -1,0 +1,24 @@
+# Copy this to ./data/models.yaml BEFORE the first `docker compose up`
+# (see ../../shared/managing-models.md for how to add/remove models — the
+# llama-swap container is started with -watch-config, so edits to this file
+# take effect immediately, no restart needed).
+#
+# /app/llama-server is bundled in the ghcr.io/mostlygeek/llama-swap:cpu image
+# (verified — see ../../shared/prebuilt-binaries.md). ${env.MODEL_FILE},
+# ${env.LLAMA_CTX_SIZE} and ${env.LLAMA_THREADS} come from .env (passed to
+# this container via docker-compose.yml's env_file). ${PORT} is llama-swap's
+# own macro: a free port it assigns automatically to this model's
+# llama-server process.
+
+healthCheckTimeout: 120
+
+models:
+  "qwen2.5-coder-7b":
+    name: "Qwen2.5 Coder 7B (default)"
+    cmd: |
+      /app/llama-server --port ${PORT}
+      --model /models/${env.MODEL_FILE}
+      --ctx-size ${env.LLAMA_CTX_SIZE}
+      --threads ${env.LLAMA_THREADS}
+      --jinja
+    ttl: 600

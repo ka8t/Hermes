@@ -1,13 +1,15 @@
 # Copy this to ./data/config.yaml BEFORE the first `docker compose up`
 # (./data is the volume mounted at /opt/data in the hermes container — see README.md)
 #
-# llama-server runs NATIVELY on the Mac (not in Docker, to keep Metal
-# acceleration): the hermes container therefore reaches it via
-# host.docker.internal, automatically resolved by Docker Desktop for Mac to
-# the host machine — no IP address to know.
+# llama-swap (and the llama-server it spawns) run NATIVELY on the Mac (not in
+# Docker, to keep Metal acceleration): the hermes container therefore reaches
+# it via host.docker.internal, automatically resolved by Docker Desktop for
+# Mac to the host machine — no IP address to know. "qwen2.5-coder-7b" must
+# match a key under models: in data/models.yaml exactly (see
+# ../../shared/managing-models.md).
 
 model:
-  default: qwen2.5-coder-7b-instruct
+  default: qwen2.5-coder-7b
   provider: custom
   base_url: http://host.docker.internal:8080/v1
   context_length: 65536

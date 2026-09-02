@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Optional: runs llama-swap (and the llama-server it manages) in the
+  background (starts at login, restarts if it crashes), so you don't need to
+  keep a terminal open at all times.
+
+  Install:
+    cp scripts/com.hermes.llama-swap.plist.example \
+       ~/Library/LaunchAgents/com.hermes.llama-swap.plist
+    # edit the three occurrences of REPLACE_WITH_REPO_PATH below
+    launchctl load ~/Library/LaunchAgents/com.hermes.llama-swap.plist
+
+  To stop it:
+    launchctl unload ~/Library/LaunchAgents/com.hermes.llama-swap.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hermes.llama-swap</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPLACE_WITH_REPO_PATH/macos-arm64/scripts/run-llama-swap.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>REPLACE_WITH_REPO_PATH/macos-arm64</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>REPLACE_WITH_REPO_PATH/macos-arm64/llama-swap.log</string>
+  <key>StandardErrorPath</key>
+  <string>REPLACE_WITH_REPO_PATH/macos-arm64/llama-swap.log</string>
+</dict>
+</plist>
