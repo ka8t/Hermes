@@ -1,0 +1,22 @@
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    platform: linux/arm64
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    env_file:
+      - .env
+    volumes:
+      - ./data:/opt/data
+    ports:
+      - "8642:8642"   # gateway
+      - "9119:9119"   # tableau de bord web (si HERMES_DASHBOARD=1)
+    extra_hosts:
+      # Docker Desktop pour Mac le résout déjà tout seul ; cette ligne rend
+      # le fichier portable si un jour vous le lancez sur du Docker Linux natif.
+      - "host.docker.internal:host-gateway"
+
+# NB : llama-server n'est volontairement PAS ici — il tourne en natif sur le
+# Mac (scripts/run-llama-server.sh) pour garder l'accélération GPU Metal, que
+# Docker Desktop pour Mac ne peut pas exposer à un conteneur. Voir README.md.

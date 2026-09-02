@@ -1,0 +1,27 @@
+# Secrets
+.env
+*.env
+!*.env.example
+
+# Modèles GGUF (trop volumineux pour git — téléchargés par les scripts)
+*.gguf
+linux-x86_64-vps/models/*
+!linux-x86_64-vps/models/.gitkeep
+macos-arm64/models/*
+!macos-arm64/models/.gitkeep
+
+# État persistant Hermes (mémoire, sessions, skills, config.yaml réel)
+**/.hermes/
+**/data/
+
+# macOS
+.DS_Store
+macos-arm64/llama-server.log
+macos-arm64/vendor/
+
+# Build local llama.cpp (si construit par find-or-build-llama-server.sh)
+
+
+# Éditeurs
+.vscode/
+.idea/

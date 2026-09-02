@@ -1,0 +1,12 @@
+# À copier vers ./data/config.yaml AVANT le premier `docker compose up`
+# (./data est le volume monté sur /opt/data dans le conteneur hermes — voir README.md)
+#
+# "llama-server" est le nom du service voisin dans docker-compose.yml ;
+# le réseau interne de Docker Compose le résout automatiquement, pas besoin
+# d'IP ni de host.docker.internal ici (contrairement à la version macOS).
+
+model:
+  default: qwen2.5-coder-7b-instruct
+  provider: custom
+  base_url: http://llama-server:8080/v1
+  context_length: 65536

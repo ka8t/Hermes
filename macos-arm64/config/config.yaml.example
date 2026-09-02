@@ -1,0 +1,13 @@
+# À copier vers ./data/config.yaml AVANT le premier `docker compose up`
+# (./data est le volume monté sur /opt/data dans le conteneur hermes — voir README.md)
+#
+# llama-server tourne EN NATIF sur le Mac (pas dans Docker, pour garder
+# l'accélération Metal) : le conteneur hermes le joint donc via
+# host.docker.internal, résolu automatiquement par Docker Desktop pour Mac
+# vers l'hôte — pas d'IP à connaître.
+
+model:
+  default: qwen2.5-coder-7b-instruct
+  provider: custom
+  base_url: http://host.docker.internal:8080/v1
+  context_length: 65536

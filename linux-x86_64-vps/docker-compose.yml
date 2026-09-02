@@ -1,0 +1,38 @@
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llama-server
+    restart: unless-stopped
+    volumes:
+      - ./models:/models:ro
+    command: >
+      -m /models/${MODEL_FILE:-qwen2.5-coder-7b-instruct-q4_k_m.gguf}
+      --host 0.0.0.0
+      --port 8080
+      -c ${LLAMA_CTX_SIZE:-65536}
+      -t ${LLAMA_THREADS:-2}
+      --jinja
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    depends_on:
+      llama-server:
+        condition: service_healthy
+    command: gateway run
+    env_file:
+      - .env
+    volumes:
+      - ./data:/opt/data
+    ports:
+      - "8642:8642"   # gateway
+      - "9119:9119"   # tableau de bord web (si HERMES_DASHBOARD=1)
