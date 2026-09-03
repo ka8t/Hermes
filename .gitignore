@@ -19,9 +19,9 @@ macos-arm64/models/*
 macos-arm64/vendor/
 linux-x86_64-vps/vendor/
 
-# BFCL evaluation venv + generated workspace (results, tokenizer files, .env) — issue #29
-eval/.venv/
-eval/bfcl-workspace/
+# BFCL evaluation venv + workspace deliberately live outside this repo, in
+# ~/.cache/hermes-eval (see eval/setup-bfcl.sh) — not this repo's own
+# problem to ignore, since they're never created here in the first place.
 
 # macOS
 .DS_Store

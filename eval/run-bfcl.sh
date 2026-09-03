@@ -4,8 +4,15 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-if [ ! -x .venv/bin/bfcl ]; then
-  echo "eval/.venv not found — run ./setup-bfcl.sh first." >&2
+# Same out-of-repo cache location as setup-bfcl.sh — see that script's
+# comment for why (iCloud Drive "Optimize Mac Storage" eviction, confirmed
+# live 2026-09-03).
+EVAL_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/hermes-eval"
+VENV_DIR="${EVAL_CACHE_DIR}/venv"
+BFCL_BIN="${VENV_DIR}/bin/bfcl"
+
+if [ ! -x "${BFCL_BIN}" ]; then
+  echo "${VENV_DIR} not found — run ./setup-bfcl.sh first." >&2
   exit 1
 fi
 
@@ -21,7 +28,7 @@ LLAMA_SWAP_PORT="${2:-8080}"
 MODEL="${BFCL_MODEL:-meta-llama/Llama-3.1-8B-Instruct-FC}"
 CATEGORIES="${BFCL_CATEGORIES:-simple,parallel,multi_turn}"
 
-export BFCL_PROJECT_ROOT="$(pwd)/bfcl-workspace"
+export BFCL_PROJECT_ROOT="${EVAL_CACHE_DIR}/bfcl-workspace"
 TOKENIZER_DIR="${BFCL_PROJECT_ROOT}/tokenizers/meta-llama-3.1-8b-instruct"
 if [ ! -f "${TOKENIZER_DIR}/tokenizer_config.json" ]; then
   echo "Tokenizer files not found at ${TOKENIZER_DIR} — run ./setup-bfcl.sh first." >&2
@@ -54,7 +61,7 @@ fi
 # requested model". model_alias_proxy.py sits in between and rewrites the
 # model field to REAL_MODEL_ID before forwarding.
 PROXY_PORT="${BFCL_PROXY_PORT:-8091}"
-.venv/bin/python3 model_alias_proxy.py \
+"${VENV_DIR}/bin/python3" model_alias_proxy.py \
   --listen-port "${PROXY_PORT}" \
   --upstream-host "${LLAMA_SWAP_HOST}" \
   --upstream-port "${LLAMA_SWAP_PORT}" \
@@ -87,7 +94,7 @@ sed \
 mv "${BFCL_PROJECT_ROOT}/.env.tmp" "${BFCL_PROJECT_ROOT}/.env"
 
 echo "==> Generating responses: model=${MODEL} categories=${CATEGORIES} (via proxy -> ${REAL_MODEL_ID})"
-.venv/bin/bfcl generate \
+"${BFCL_BIN}" generate \
   --model "${MODEL}" \
   --test-category "${CATEGORIES}" \
   --skip-server-setup \
@@ -95,7 +102,7 @@ echo "==> Generating responses: model=${MODEL} categories=${CATEGORIES} (via pro
   --allow-overwrite
 
 echo "==> Scoring responses"
-.venv/bin/bfcl evaluate \
+"${BFCL_BIN}" evaluate \
   --model "${MODEL}" \
   --test-category "${CATEGORIES}"
 

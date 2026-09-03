@@ -47,9 +47,26 @@ cd eval
 ./run-bfcl.sh 127.0.0.1 8080       # <llama-swap host> <llama-swap port>
 ```
 
-Three real problems were found live-testing this, none documented
+Six real problems were found live-testing this, none documented
 upstream, all now handled by the two scripts above — worth knowing if
 you're debugging this yourself:
+
+0. **iCloud Drive eviction of the venv (macOS only).** On this Mac, with
+   iCloud Drive's "Optimize Mac Storage" enabled (`defaults read
+   com.apple.bird optimize-storage` → `1`) — a setting this repo's own
+   folder must stay under, since the repo itself needs to stay fully
+   synced — a venv's thousands of small package files living inside the
+   repo (`eval/.venv`) can get evicted to save local space and then fail
+   to re-hydrate: confirmed live 2026-09-03, `import transformers` failed
+   with `TimeoutError: [Errno 60] Operation timed out`, reproduced with a
+   plain `wc -l` on the same file (not a Python or bfcl-eval bug). Fix:
+   `setup-bfcl.sh`/`run-bfcl.sh` place the venv and BFCL workspace at
+   `${XDG_CACHE_HOME:-$HOME/.cache}/hermes-eval`, outside the repo
+   entirely — disposable, regenerate-anytime installs have no reason to
+   live inside a folder whose whole point is staying synced. `git status`
+   no longer lists `eval/.venv`/`eval/bfcl-workspace` at all (removed
+   from `.gitignore` along with them, since there's nothing there to
+   ignore any more).
 
 1. **Missing dependencies.** `pip install bfcl-eval` alone doesn't run:
    its Qwen support imports `soundfile` at module load time (crashes on
