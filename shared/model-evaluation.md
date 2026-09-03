@@ -43,30 +43,41 @@ already have running — llama-swap qualifies.
 
 ```bash
 cd eval
-./setup-bfcl.sh                    # once: venv, bfcl-eval, tokenizer files
+./setup-bfcl.sh                    # once: builds the Docker image, downloads tokenizer files
 ./run-bfcl.sh 127.0.0.1 8080       # <llama-swap host> <llama-swap port>
 ```
 
-Six real problems were found live-testing this, none documented
-upstream, all now handled by the two scripts above — worth knowing if
-you're debugging this yourself:
+Everything — the venv, `bfcl-eval`, `soundfile`, `transformers` — installs
+inside a Docker image (`eval/Dockerfile`), never on the host. Only the
+small, human-readable bits (downloaded tokenizer JSON files, BFCL's own
+`.env`, generated results/scores) live on disk, under `eval/bfcl-workspace/`
+— everything runs from inside this repo's own `eval/` folder, no host
+setup beyond Docker itself, no directory outside the repo. See #51 for
+why this shape was required.
 
-0. **iCloud Drive eviction of the venv (macOS only).** On this Mac, with
-   iCloud Drive's "Optimize Mac Storage" enabled (`defaults read
-   com.apple.bird optimize-storage` → `1`) — a setting this repo's own
-   folder must stay under, since the repo itself needs to stay fully
-   synced — a venv's thousands of small package files living inside the
-   repo (`eval/.venv`) can get evicted to save local space and then fail
-   to re-hydrate: confirmed live 2026-09-03, `import transformers` failed
-   with `TimeoutError: [Errno 60] Operation timed out`, reproduced with a
-   plain `wc -l` on the same file (not a Python or bfcl-eval bug). Fix:
-   `setup-bfcl.sh`/`run-bfcl.sh` place the venv and BFCL workspace at
-   `${XDG_CACHE_HOME:-$HOME/.cache}/hermes-eval`, outside the repo
-   entirely — disposable, regenerate-anytime installs have no reason to
-   live inside a folder whose whole point is staying synced. `git status`
-   no longer lists `eval/.venv`/`eval/bfcl-workspace` at all (removed
-   from `.gitignore` along with them, since there's nothing there to
-   ignore any more).
+Six real problems were found live-testing this, none documented
+upstream, all now handled by the scripts/`Dockerfile` above — worth
+knowing if you're debugging this yourself:
+
+0. **iCloud Drive eviction of a venv (macOS only) — why this is
+   containerized at all.** On this Mac, with iCloud Drive's "Optimize Mac
+   Storage" enabled (`defaults read com.apple.bird optimize-storage` →
+   `1`) — a setting this repo's own folder must stay under, since the
+   repo itself needs to stay fully synced, with nothing relocated outside
+   it (#51) — a venv's thousands of small package files, if created
+   directly under `eval/` on the host, can get evicted to save local
+   space and then fail to re-hydrate: confirmed live 2026-09-03, `import
+   transformers` failed with `TimeoutError: [Errno 60] Operation timed
+   out`, reproduced with a plain `wc -l` on the same file (not a Python or
+   bfcl-eval bug). An earlier fix moved the venv to
+   `~/.cache/hermes-eval`, outside the repo — rejected (#51): the repo
+   must run entirely from its own folder, with no relocated install
+   directories and no host configuration changes. Containerizing the
+   install (`eval/Dockerfile`) resolves both: the thousands of small
+   package files live inside the image's own filesystem, which iCloud
+   never sees at all, while `eval/`'s own files (scripts, `Dockerfile`,
+   the small downloaded tokenizer/`.env`/results files in
+   `eval/bfcl-workspace/`) stay in place, tiny, and fully synced.
 
 1. **Missing dependencies.** `pip install bfcl-eval` alone doesn't run:
    its Qwen support imports `soundfile` at module load time (crashes on
@@ -75,7 +86,7 @@ you're debugging this yourself:
    — only bfcl-eval's own `oss-eval-vllm` extra pulls it in, and that
    extra also drags in the full `vllm==0.8.5` package (GPU-oriented,
    unused here since `--skip-server-setup` means vllm never serves
-   anything). `setup-bfcl.sh` installs `soundfile` and `transformers`
+   anything). `eval/Dockerfile` installs `soundfile` and `transformers`
    directly instead.
 2. **Wrong env var names.** BFCL's local-inference handler reads
    `VLLM_ENDPOINT`/`VLLM_PORT` (confirmed directly in
@@ -86,7 +97,8 @@ you're debugging this yourself:
    shell-exported `VLLM_ENDPOINT`/`VLLM_PORT` with whatever's hard-coded
    in bfcl-eval's own `.env.example` template
    (`VLLM_ENDPOINT=localhost`, `VLLM_PORT=1053`) — exporting the env vars
-   has no effect. `run-bfcl.sh` edits the `.env` file directly.
+   has no effect. `eval/entrypoint.sh` (run inside the container) edits
+   the `.env` file directly.
 3. **The gated tokenizer.** BFCL's local-inference handler loads the
    model's tokenizer via `transformers.AutoTokenizer`, from the model's
    *original* HuggingFace repo — separate from and in addition to
