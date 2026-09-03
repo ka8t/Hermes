@@ -135,11 +135,40 @@ evaluation harness (multi-turn BFCL categories, see the tracking issue
 for that work) is meant to catch systematically instead of finding by
 accident during manual testing.
 
+**Root-caused, not just observed** (see issue #37 for the full
+investigation): the malformed `tasks` argument was specifically
+Python-`repr()`-style syntax serialized as a string
+(`"[{'goal': '...', ...}"`, single-quoted keys, truncated/unclosed) —
+not just "invalid JSON," a model defaulting to Python literal syntax
+under a schema asking for a JSON array. `agent.stall_guards` (on by
+default) correctly detected the repeated identical failure and told the
+model to change strategy — Hermes's own guardrail worked exactly as
+designed. The model's "change of strategy" was itself the failure: it
+pivoted to `pip install -U prisma` (a database ORM, unrelated to the
+task), then wandered into unrelated `github`-skill lookups and memory
+edits.
+
+**Verified this is not a prompt/skill-authoring problem before
+concluding it's a model limitation**: the recovered system prompt (from
+`state.db`'s `system_prompts` table, keyed by the session's
+`system_prompt_hash` — `sessions.system_prompt` itself was NULL) showed
+`clarify-agent-intent` and `build-agent-from-intent` correctly indexed
+under `ka8t-hermes/agent-creation`, with Hermes's own generic
+instruction ("load [skills] even for tasks you already know how to do")
+present immediately above the skills index. This skill's own "When to
+Use" trigger phrase ("create an agent that...") is a near-verbatim match
+for the actual test prompt. The model had everything it needed to find
+and use the right skill, and didn't — a model capability/judgment
+limitation, not something fixable by rewording a skill file or the
+system prompt.
+
 **Not yet re-tested against a different model** — this finding is
 reason to prioritize that evaluation work before trusting
 Meta-Llama-3.1-8B-Instruct with unattended multi-step tasks (cron jobs,
 `delegate_task`), even though its single-turn tool-calling (the original
-`curl` test above) still checks out.
+`curl` test above) still checks out. This exact prompt is being added as
+a regression case to that evaluation suite (issue #29) rather than left
+as an anecdote.
 
 ## Going further
 
