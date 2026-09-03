@@ -212,6 +212,38 @@ Meta-Llama-3.1-8B-Instruct with unattended multi-step tasks (cron jobs,
 a regression case to that evaluation suite (issue #29) rather than left
 as an anecdote.
 
+**Real end-to-end Telegram test protocol (issue #46, in progress,
+2026-09-03)** — every prior test of this prompt went through `hermes -z`
+(one-shot CLI), never a real Telegram round-trip, and #38 already showed
+`-z` behaves differently from a real gateway session (no approval gate).
+To get a genuine end-to-end reading:
+
+- **Two separate bots**: a Telegram bot's long-polling can only run from
+  one place at a time, so local (this Mac) and remote (the VPS) testing
+  use two distinct bots — the VPS keeps its existing production bot
+  untouched; a second, dedicated bot is created for local testing only.
+- **A human sends the message, for real**: Telegram's Bot API can't
+  inject a fake incoming message — only a real Telegram client can make
+  one arrive at a bot. So this test isn't automatable end-to-end; the
+  user sends the exact prompt from their own phone, and verification
+  happens server-side afterward (`state.db`, `docker compose logs`),
+  the same reconstruction method already used for #37/#38.
+- **Two numbers per environment, not one**: real response latency
+  (message sent → final reply received, not just raw model tok/s) *and*
+  a correctness verdict (clarify-skill invoked vs. drifted) — either one
+  alone would be misleading (a fast wrong answer, or a correct answer
+  nobody would wait for).
+- **GPU-remote variant explicitly out of scope**: no NVIDIA/AMD/Intel GPU
+  hardware exists in this environment — same blocking constraint as #13,
+  not a new gap. Only local (Metal) and remote-CPU are tested now.
+- **Credential safety**: the local test bot's token lives only in the
+  local `.env` (git-ignored repo-wide) — never pasted into a commit,
+  issue, or log file added to the repo. Checked explicitly before every
+  commit made while this test is in progress, not just assumed from
+  `.gitignore`.
+
+Results, once available, land here and on issue #37 directly.
+
 **Defense-in-depth, implemented 2026-09-03 (not the fix — model
 verification above is)**: `agent.run_budget_seconds: 3600` is now set in
 both platforms' `config.yaml.example`. At 80% elapsed (48 min) Hermes
