@@ -123,9 +123,11 @@ Hermes/
 │   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
+├── docs/ARCHITECTURE.md  # living system architecture doc, diagrams — kept current on every change
 └── shared/               # platform-independent docs, linked from both guides
 ```
 
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components, deployment topologies, message flow, and what's specced vs. live
 - [`shared/telegram-setup.md`](shared/telegram-setup.md) — bot creation, environment variables
 - [`shared/model-notes.md`](shared/model-notes.md) — GGUF model choice, context constraints
 - [`shared/managing-models.md`](shared/managing-models.md) — add / switch / remove models via llama-swap
