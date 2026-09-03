@@ -25,7 +25,7 @@ services:
       start_period: 30s
 
   hermes:
-    image: nousresearch/hermes-agent:latest
+    image: ghcr.io/ka8t/hermes:latest
     container_name: hermes
     restart: unless-stopped
     depends_on:

@@ -11,8 +11,8 @@
 healthCheckTimeout: 120
 
 models:
-  "qwen2.5-coder-7b":
-    name: "Qwen2.5 Coder 7B (default)"
+  "hermes-3-llama-3.1-8b":
+    name: "Hermes 3 Llama 3.1 8B (default)"
     cmd: |
       ${env.LLAMA_SERVER_BIN} --port ${PORT}
       --model ${env.MODELS_DIR}/${env.MODEL_FILE}

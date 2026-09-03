@@ -18,26 +18,43 @@ already include `--jinja`.
 
 ## Default model used here
 
-**Qwen2.5-Coder-7B-Instruct** (`Q4_K_M` quantization, ~4.7 GB) — a good
-size/quality trade-off for agentic use, runs fine on an 8 GB RAM VPS in CPU
-mode, and benefits from the Metal GPU on an Apple Silicon Mac.
+**Hermes-3-Llama-3.1-8B** (`Q4_K_M` quantization, ~4.9 GB) — Nous Research's
+own model, trained specifically for reliable agentic tool-calling, at
+essentially the same footprint as a generic 7-8B model.
 
-- Official GGUF repository: https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF
-- File used by the scripts: `qwen2.5-coder-7b-instruct-q4_k_m.gguf`
+- Official GGUF repository: https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF
+- File used by the scripts: `Hermes-3-Llama-3.1-8B.Q4_K_M.gguf`
 
 > If Hugging Face has renamed the file since, open the page above and adjust
 > `MODEL_FILE` in `.env` accordingly — the scripts don't invent any other
 > filename than this one.
 
+### Why not the previous default (Qwen2.5-Coder-7B-Instruct)
+
+This repo shipped Qwen2.5-Coder-7B-Instruct first, on paper a reasonable
+generalist choice. A live test of this repo's guided agent-creation skills
+(see [`managing-models.md`](managing-models.md) and
+[`../skills/agent-creation/`](../skills/agent-creation/)) surfaced a real
+failure: asked to create a new agent, it should have followed the
+`clarify-agent-intent` skill and asked clarifying questions, but instead
+emitted a malformed tool-call attempt as raw text. Hermes-3-Llama-3.1-8B is
+Nous Research's own model, trained specifically for reliable function
+calling and instruction-following in agentic loops — the exact capability
+that failed — at the same size class, so it doesn't cost more RAM/CPU on
+either the Mac or the 8 GB VPS this repo targets. Re-tested against the
+same prompt after switching — see the commit history for the result.
+
 ## Going further
 
 | Model | When to prefer it |
 |---|---|
-| Qwen2.5-Coder-7B-Instruct (default) | First try, modest VPS, 16 GB Mac |
-| Qwen2.5-Coder-32B-Instruct | Apple Silicon Mac with 32 GB+ RAM (much more capable) |
-| Hermes-3-Llama-3.1-8B (Nous Research) | Their own model, good perf/size ratio |
+| Hermes-3-Llama-3.1-8B (default) | First try — same size class as any other 7-8B model, tuned for agentic/tool-calling reliability |
+| Hermes-4-14B (Nous Research) | Noticeably more capable, but ~9 GB in `Q4_K_M` — doesn't fit the 8 GB VPS this repo targets; fine on a Mac with 32 GB+ RAM |
+| Qwen2.5-Coder-32B-Instruct | Apple Silicon Mac with 32 GB+ RAM, code-heavy tasks specifically |
 | Llama-3.1-70B-Instruct | Dedicated beefy GPU only (vLLM/SGLang, not this repo) |
 
 Source: Hermes official providers documentation —
-[hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
-and the Qwen model card on Hugging Face.
+[hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers),
+the NousResearch/Hermes-3-Llama-3.1-8B-GGUF and bartowski/NousResearch_Hermes-4-14B-GGUF
+model cards on Hugging Face (file sizes verified by HTTP HEAD request,
+2026-09-03).

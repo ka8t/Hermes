@@ -4,12 +4,12 @@
 # llama-swap (and the llama-server it spawns) run NATIVELY on the Mac (not in
 # Docker, to keep Metal acceleration): the hermes container therefore reaches
 # it via host.docker.internal, automatically resolved by Docker Desktop for
-# Mac to the host machine — no IP address to know. "qwen2.5-coder-7b" must
+# Mac to the host machine — no IP address to know. "hermes-3-llama-3.1-8b" must
 # match a key under models: in data/models.yaml exactly (see
 # ../../shared/managing-models.md).
 
 model:
-  default: qwen2.5-coder-7b
+  default: hermes-3-llama-3.1-8b
   provider: custom
   base_url: http://host.docker.internal:8080/v1
   context_length: 65536

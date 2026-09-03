@@ -1,6 +1,6 @@
 services:
   hermes:
-    image: nousresearch/hermes-agent:latest
+    image: ghcr.io/ka8t/hermes:latest
     platform: linux/arm64
     container_name: hermes
     restart: unless-stopped

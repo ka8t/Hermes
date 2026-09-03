@@ -38,12 +38,14 @@ if [ ! -f data/models.yaml ]; then
 fi
 
 MODEL_FILE="$(grep -E '^MODEL_FILE=' .env | cut -d= -f2)"
-MODEL_FILE="${MODEL_FILE:-qwen2.5-coder-7b-instruct-q4_k_m.gguf}"
+MODEL_FILE="${MODEL_FILE:-Hermes-3-Llama-3.1-8B.Q4_K_M.gguf}"
+MODEL_REPO="$(grep -E '^MODEL_REPO=' .env | cut -d= -f2)"
+MODEL_REPO="${MODEL_REPO:-NousResearch/Hermes-3-Llama-3.1-8B-GGUF}"
 
 if [ ! -f "models/${MODEL_FILE}" ]; then
   echo "==> Downloading model ${MODEL_FILE} (see ../shared/model-notes.md to change models)"
   curl -fL --progress-bar \
-    "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/${MODEL_FILE}" \
+    "https://huggingface.co/${MODEL_REPO}/resolve/main/${MODEL_FILE}" \
     -o "models/${MODEL_FILE}"
 else
   echo "==> Model already present: models/${MODEL_FILE}"

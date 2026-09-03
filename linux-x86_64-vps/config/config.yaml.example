@@ -4,12 +4,12 @@
 # "llama-swap" is the name of the neighboring service in docker-compose.yml;
 # Docker Compose's internal network resolves it automatically, no IP or
 # host.docker.internal needed here (unlike the macOS version). llama-swap
-# routes to whichever model ID is requested — "qwen2.5-coder-7b" must match
+# routes to whichever model ID is requested — "hermes-3-llama-3.1-8b" must match
 # a key under models: in data/models.yaml exactly (see
 # ../../shared/managing-models.md).
 
 model:
-  default: qwen2.5-coder-7b
+  default: hermes-3-llama-3.1-8b
   provider: custom
   base_url: http://llama-swap:8080/v1
   context_length: 65536
