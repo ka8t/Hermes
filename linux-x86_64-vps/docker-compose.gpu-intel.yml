@@ -1,0 +1,33 @@
+# Intel GPU (SYCL) override for docker-compose.yml (issue #13). Use
+# ALONGSIDE the base file, not instead of it:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-intel.yml up -d
+#
+# Prerequisites:
+#   - An Intel GPU (integrated or Arc/Data Center) with working drivers on
+#     the host — run `ls -la /dev/dri` first; you should see `renderD1xx`
+#     and `cardN` device nodes. llama.cpp's own official SYCL Docker docs
+#     map specific nodes (e.g. `/dev/dri/renderD128:/dev/dri/renderD128`,
+#     `/dev/dri/card0:/dev/dri/card0`) rather than the whole directory —
+#     this file maps the whole `/dev/dri` directory instead, for
+#     portability across machines with different node numbers, since this
+#     repo has no Intel GPU to confirm which approach the `:intel`
+#     llama-swap image actually needs. If the whole-directory mapping
+#     below doesn't work, try the exact per-node form from
+#     ../shared/gpu-setup.md's sources instead.
+#
+# Also requires data/models.yaml to come from config/models.yaml.example.gpu
+# instead of the CPU-only config/models.yaml.example — see
+# ../shared/gpu-setup.md for the full, step-by-step setup this overlay is
+# part of.
+#
+# NOT LIVE-VERIFIED: written without Intel GPU hardware available to test
+# against (see ../shared/gpu-setup.md's status note). Confirm it actually
+# works before trusting it:
+#   ./scripts/verify-inference.sh   # tok/s should jump versus the CPU
+#                                    # numbers in ../shared/hardware-sizing.md
+services:
+  llama-swap:
+    image: ghcr.io/mostlygeek/llama-swap:intel
+    devices:
+      - /dev/dri:/dev/dri

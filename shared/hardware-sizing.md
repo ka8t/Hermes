@@ -117,8 +117,11 @@ in that order, don't assume the first hypothesis is the right one.
 
 | Gap | Tracking issue |
 |---|---|
-| GPU detection and support for the Linux VPS path (this repo assumes CPU-only unconditionally today) | #13 |
 | Verifying whether CPU thread count matters at all on macOS given full Metal offload (currently assumed, not measured) | #14 |
+
+GPU support for the Linux VPS path (#13) is now implemented — see
+[`gpu-setup.md`](gpu-setup.md) — but not live-verified (no GPU-equipped
+machine available while writing it).
 
 ## Sources
 

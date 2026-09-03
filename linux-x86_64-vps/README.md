@@ -32,6 +32,9 @@ Telegram messages.
 - Root/sudo access over SSH.
 - Docker Engine + Compose plugin (installed by `provision.sh` if missing) — skip it entirely with the [native alternative](#native-alternative-no-docker-at-all) below.
 - A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
+- No GPU required — this path is CPU-only by default. If your VPS does have
+  an NVIDIA GPU, see [`../shared/gpu-setup.md`](../shared/gpu-setup.md)
+  (implemented, not live-verified — see that page's status note).
 
 ## Installation
 

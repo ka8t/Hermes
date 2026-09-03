@@ -1,0 +1,26 @@
+# GPU variant of models.yaml.example (issue #13). Copy this to
+# ./data/models.yaml INSTEAD OF config/models.yaml.example when using
+# docker-compose.gpu.yml — see ../../shared/gpu-setup.md for the full setup.
+#
+# /app/llama-server is expected to be bundled in the
+# ghcr.io/mostlygeek/llama-swap:cuda image the same way it's bundled in
+# :cpu (verified for :cpu — see ../../shared/prebuilt-binaries.md; NOT
+# independently confirmed for :cuda, verify with
+# `docker compose exec llama-swap /app/llama-server --version` after
+# first start). ${env.MODEL_FILE}, ${env.LLAMA_CTX_SIZE},
+# ${env.LLAMA_THREADS} and ${env.LLAMA_GPU_LAYERS} come from .env.
+# ${PORT} is llama-swap's own macro.
+
+healthCheckTimeout: 120
+
+models:
+  "llama-3.1-8b-instruct":
+    name: "Llama 3.1 8B Instruct (default, GPU)"
+    cmd: |
+      /app/llama-server --port ${PORT}
+      --model /models/${env.MODEL_FILE}
+      --ctx-size ${env.LLAMA_CTX_SIZE}
+      --threads ${env.LLAMA_THREADS}
+      --n-gpu-layers ${env.LLAMA_GPU_LAYERS}
+      --jinja
+    ttl: 600

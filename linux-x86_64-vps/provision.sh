@@ -19,6 +19,26 @@ if ! docker compose version >/dev/null 2>&1; then
   apt-get update -y && apt-get install -y docker-compose-plugin
 fi
 
+echo "==> Checking for a GPU (issue #13, any vendor)"
+GPU_VENDOR=""
+if command -v nvidia-smi >/dev/null 2>&1 || [ -e /dev/nvidia0 ]; then
+  GPU_VENDOR="nvidia"
+elif command -v rocm-smi >/dev/null 2>&1 || [ -e /dev/kfd ]; then
+  GPU_VENDOR="amd"
+elif command -v lspci >/dev/null 2>&1 && lspci | grep -iE "vga|3d|display" | grep -iq intel; then
+  GPU_VENDOR="intel"
+fi
+
+if [ -n "${GPU_VENDOR}" ]; then
+  echo "!! ${GPU_VENDOR} GPU detected — this script still provisions the"
+  echo "!! CPU-only path by default. See ../shared/gpu-setup.md to switch to"
+  echo "!! the ${GPU_VENDOR}-specific image/config instead (not done"
+  echo "!! automatically — GPU support needs host-level prerequisites this"
+  echo "!! script does not install for you)."
+else
+  echo "==> No GPU detected — proceeding with the CPU-only path (default)."
+fi
+
 echo "==> Preparing persistent directories"
 mkdir -p data models
 

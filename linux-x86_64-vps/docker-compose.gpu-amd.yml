@@ -1,0 +1,31 @@
+# AMD/ROCm GPU override for docker-compose.yml (issue #13). Use ALONGSIDE
+# the base file, not instead of it:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-amd.yml up -d
+#
+# Prerequisites:
+#   - An AMD GPU with ROCm-compatible drivers already working on the host.
+#   - No separate "container toolkit" is required for AMD — plain device
+#     passthrough (`/dev/kfd`, `/dev/dri`) is AMD's own documented method
+#     (an optional AMD Container Runtime Toolkit exists for fine-grained
+#     multi-GPU selection, not needed for a single-GPU box) — see
+#     ../shared/gpu-setup.md for the source.
+#
+# Also requires data/models.yaml to come from config/models.yaml.example.gpu
+# instead of the CPU-only config/models.yaml.example — see
+# ../shared/gpu-setup.md for the full, step-by-step setup this overlay is
+# part of.
+#
+# NOT LIVE-VERIFIED: written without ROCm hardware available to test
+# against (see ../shared/gpu-setup.md's status note). Confirm it actually
+# works before trusting it:
+#   docker compose exec llama-swap rocm-smi     # should list llama-server
+#   ./scripts/verify-inference.sh               # tok/s should jump sharply
+#                                                # versus the CPU numbers in
+#                                                # ../shared/hardware-sizing.md
+services:
+  llama-swap:
+    image: ghcr.io/mostlygeek/llama-swap:rocm
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri

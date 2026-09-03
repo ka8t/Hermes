@@ -1,0 +1,34 @@
+# GPU override for docker-compose.yml (issue #13). Use ALONGSIDE the base
+# file, not instead of it:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-nvidia.yml up -d
+#
+# Prerequisites this repo cannot install or verify for you:
+#   - An NVIDIA GPU and its driver already working on the host
+#     (`nvidia-smi` should already print a GPU before you touch Docker).
+#   - The NVIDIA Container Toolkit installed and configured for Docker —
+#     see ../shared/gpu-setup.md for the official install-guide link and
+#     the exact verification command.
+#
+# Also requires data/models.yaml to come from
+# config/models.yaml.example.gpu instead of the CPU-only
+# config/models.yaml.example — see ../shared/gpu-setup.md for the full,
+# step-by-step setup this overlay is part of.
+#
+# NOT LIVE-VERIFIED: written without a GPU-equipped machine available to
+# test against (see ../shared/gpu-setup.md's status note). Confirm it
+# actually works before trusting it:
+#   docker compose exec llama-swap nvidia-smi   # should list llama-server
+#   ./scripts/verify-inference.sh               # tok/s should jump sharply
+#                                                # versus the CPU numbers in
+#                                                # ../shared/hardware-sizing.md
+services:
+  llama-swap:
+    image: ghcr.io/mostlygeek/llama-swap:cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
