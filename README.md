@@ -140,6 +140,7 @@ Hermes/
 - [`shared/hardware-sizing.md`](shared/hardware-sizing.md) — check your real CPU/RAM/GPU before trusting this repo's documented performance numbers
 - [`shared/gpu-setup.md`](shared/gpu-setup.md) — optional NVIDIA/AMD/Intel GPU support for the Linux VPS path (implemented, not live-verified — see [#13](https://github.com/ka8t/Hermes/issues/13))
 - [`shared/model-evaluation.md`](shared/model-evaluation.md) — BFCL (tool-calling reliability) and `llama-bench` (throughput) evaluation design (specced, not yet implemented — see [#28](https://github.com/ka8t/Hermes/issues/28))
+- [`shared/model-comparison.md`](shared/model-comparison.md) — `/compare`, an in-channel command to ask several models the same question side by side (specced, not yet implemented — see [#39](https://github.com/ka8t/Hermes/issues/39))
 
 ## Security
 
