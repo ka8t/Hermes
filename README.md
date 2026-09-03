@@ -123,13 +123,14 @@ Hermes/
 │   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
-└── shared/
-    ├── telegram-setup.md      # bot creation, environment variables
-    ├── model-notes.md         # GGUF model choice, context constraints
-    ├── managing-models.md     # add / switch / remove models via llama-swap
-    ├── prebuilt-binaries.md   # official binaries used, per platform
-    └── enterprise-safety.md   # the approvals default, and what it doesn't cover
+└── shared/               # platform-independent docs, linked from both guides
 ```
+
+- [`shared/telegram-setup.md`](shared/telegram-setup.md) — bot creation, environment variables
+- [`shared/model-notes.md`](shared/model-notes.md) — GGUF model choice, context constraints
+- [`shared/managing-models.md`](shared/managing-models.md) — add / switch / remove models via llama-swap
+- [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md) — official binaries used, per platform
+- [`shared/enterprise-safety.md`](shared/enterprise-safety.md) — the approvals default, and what it doesn't cover
 
 ## Security
 
