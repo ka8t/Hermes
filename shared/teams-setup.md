@@ -77,8 +77,106 @@ extra) added explicitly rather than relying on lazy-install. See
 
 ## 5. Install the app in Teams
 
-Use the install link from step 3 to add the bot to your own Teams client,
-or share it with whoever should have access.
+```bash
+teams app get <teamsAppId> --install-link
+```
+
+Open the printed link in a browser — it opens directly in the Teams
+client. Send the bot a DM once installed; it's ready.
+
+**Verify the listener actually came up**:
+
+```bash
+docker compose logs hermes | grep -i teams
+# or: hermes gateway status -l   (native install)
+```
+
+Look for `[teams] Webhook server listening on * (all interfaces,
+IPv4+IPv6):3978/api/messages`.
+
+## Full configuration reference
+
+### Environment variables
+
+| Variable | Description |
+|---|---|
+| `TEAMS_CLIENT_ID` | Azure AD App (client) ID |
+| `TEAMS_CLIENT_SECRET` | Azure AD client secret — rotate periodically via the Azure portal or Teams CLI |
+| `TEAMS_TENANT_ID` | Azure AD tenant ID |
+| `TEAMS_ALLOWED_USERS` | Comma-separated AAD object IDs allowed to use the bot |
+| `TEAMS_ALLOW_ALL_USERS` | Set `true` to skip the allowlist entirely |
+| `TEAMS_HOME_CHANNEL` | Conversation ID for cron/proactive message delivery |
+| `TEAMS_HOME_CHANNEL_NAME` | Display name for the home channel |
+| `TEAMS_PORT` | Webhook port (default `3978`) |
+
+### Equivalent `config.yaml` form
+
+```yaml
+platforms:
+  teams:
+    enabled: true
+    extra:
+      client_id: "your-client-id"
+      client_secret: "your-secret"
+      tenant_id: "your-tenant-id"
+      port: 3978
+```
+
+## Features
+
+**Interactive approval cards**: a dangerous command sends an Adaptive
+Card with four buttons instead of requiring `/approve` typed out — **Allow
+Once**, **Allow Session**, **Always Allow**, **Deny**. Clicking one
+resolves the approval inline and replaces the card with the decision.
+
+**Meeting summary delivery** (only relevant if the separate
+`teams_pipeline` plugin is enabled — out of scope for this repo today):
+this same adapter can also deliver meeting-transcript summaries, via
+either a static `incoming_webhook_url` (simple, no threading) or the
+Microsoft Graph API (`delivery_mode: graph`, threaded posts under the
+bot's own identity, needs a separate Graph app registration). Inert
+unless that plugin is turned on.
+
+## Production deployment
+
+For a permanent (non-tunnel) setup, terminate TLS at a real reverse proxy
+and forward to the plain HTTP listener (`http://127.0.0.1:3978` /
+`hermes:3978`) — Teams rejects self-signed certificates and the local
+listener never serves HTTPS itself. Point the bot at the new endpoint:
+
+```bash
+teams app update --id <teamsAppId> --endpoint "https://your-domain.com/api/messages"
+```
+
+(`teams app create` was for first registration in step 3; use `update`
+once the app already exists — re-running `create` would register a
+second bot.)
+
+## Troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| `requirements not met` / `Teams SDK missing` / `No adapter available for teams` | Restart the gateway so lazy-install can run — see the SDK-bundling note above; may need `docker/Dockerfile` changes instead of relying on it |
+| `health` endpoint works but bot never responds | The tunnel may have gone down, or its URL no longer matches what was registered with `teams app create`/`update` |
+| Logs show `"UNKNOWN / HTTP/1.0" 400` | Something is forwarding HTTPS to the plain-HTTP listener — terminate TLS at the tunnel/proxy, forward HTTP to `3978` |
+| `KeyError: 'teams'` in logs | Restart the container |
+| Bot responds with auth errors | Re-check `TEAMS_CLIENT_ID`/`TEAMS_CLIENT_SECRET`/`TEAMS_TENANT_ID` — all three must be correct together |
+| Bot receives messages but ignores them | Your AAD object ID isn't in `TEAMS_ALLOWED_USERS` — re-run `teams status --verbose` to confirm it |
+| Tunnel URL changed after a restart | Cloudflare named tunnels (this repo's setup) keep a stable hostname — if it still changed, the tunnel wasn't configured as a named one; re-run `teams app update` with the current URL either way |
+| Teams shows "This bot is not responding" | Check `docker compose logs hermes` / `hermes gateway status -l` for a traceback around the failed request |
+| `[teams] Failed to connect` | SDK failed to authenticate — double-check the tenant ID matches the account used in `teams login` |
+
+## Security
+
+- **Always set `TEAMS_ALLOWED_USERS`.** Without it, anyone who finds or
+  installs the bot can talk to it — messages from anyone else are
+  silently dropped once it's set.
+- **`TEAMS_CLIENT_SECRET` is a password.** Rotate it periodically.
+- Store `.env` with `chmod 600` — same posture this repo already takes
+  for Telegram/WhatsApp credentials.
+- The public `/api/messages` endpoint is authenticated by the Teams Bot
+  Framework itself — requests without a valid JWT are rejected before
+  reaching Hermes.
 
 ## Status
 

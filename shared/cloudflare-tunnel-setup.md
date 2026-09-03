@@ -93,6 +93,43 @@ mistake surfaces here rather than as a mysterious "webhook verification
 failed" on their side. Neither adapter necessarily answers `/health` —
 check each platform's own doc for a real verification endpoint/handshake.
 
+## Cost
+
+Cloudflare Tunnel itself is free on Cloudflare's free plan — no per-tunnel
+or per-hostname charge, no bandwidth cap tied specifically to tunnels.
+The only requirement is a domain **added to** Cloudflare (as a DNS zone);
+domain registration itself can be anywhere, or a free Cloudflare-registered
+domain. Verify current terms directly with Cloudflare before depending on
+this for a production deployment — pricing pages change.
+
+## Adding a third hostname later (e.g. a future channel)
+
+Repeat step 2 in the same tunnel — Cloudflare Tunnel supports any number
+of public hostnames on one connector, each independently routed to its
+own local service/port. No new `CLOUDFLARE_TUNNEL_TOKEN` or container
+needed.
+
+## Rotating or revoking the tunnel token
+
+Zero Trust dashboard → **Networks → Tunnels** → select the tunnel →
+**Configure** → reissue the token if compromised, or **Delete** to tear
+the whole tunnel down (all its public hostnames stop resolving
+immediately). Update `CLOUDFLARE_TUNNEL_TOKEN` in `.env` and
+`docker compose up -d --force-recreate cloudflared` after rotating.
+
+## Security notes
+
+- The tunnel is **outbound-only** from this VPS's side — `cloudflared`
+  initiates the connection to Cloudflare's edge, so no inbound firewall
+  rule or open port is needed on the VPS itself for the tunnel to work.
+- Anyone who obtains `CLOUDFLARE_TUNNEL_TOKEN` can run a connector that
+  impersonates this tunnel — treat it like any other credential in `.env`
+  (not committed, `chmod 600` on the file).
+- This setup exposes exactly two services (WhatsApp and Teams webhook
+  listeners) — no dashboard, no API server, no SSH — deliberately, since
+  those two are the only things that need to be reachable from the
+  outside at all.
+
 ## Troubleshooting
 
 | Symptom | What to check |
