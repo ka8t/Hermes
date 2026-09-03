@@ -6,8 +6,17 @@
 # Usage: ./provision-user.sh <platform> <chat_id> <profile-slug>
 # Example: ./provision-user.sh telegram 987654321 alice
 #
-# In a Telegram DM, chat_id equals the sender's numeric user_id (get it
-# via @userinfobot — see ../../shared/telegram-setup.md).
+# <platform> isn't validated against a fixed list — gateway.profile_routes
+# accepts any platform Hermes's gateway supports, this script just writes
+# the YAML. What to pass as <chat_id> per platform:
+#   telegram  - the sender's numeric user_id (in a DM, chat_id == user_id;
+#               get it via @userinfobot — see ../../shared/telegram-setup.md)
+#   whatsapp  - the sender's wa_id (phone number, digits only, e.g.
+#               15551234567 — see ../../shared/whatsapp-setup.md)
+#   teams     - the DM's conversation ID, NOT the AAD object ID used for
+#               TEAMS_ALLOWED_USERS (a person identifier, not a chat
+#               identifier) — unverified against a real Teams deployment,
+#               see ../../shared/teams-setup.md and issue #20
 #
 # Idempotent: safe to re-run for the same user (no-op if the route already
 # exists), and refuses (rather than silently overwriting) if that

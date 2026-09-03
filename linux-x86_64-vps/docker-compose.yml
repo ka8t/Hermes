@@ -38,4 +38,27 @@ services:
       - ./data:/opt/data
     ports:
       - "8642:8642"   # gateway
+      - "127.0.0.1:8090:8090"   # WhatsApp Cloud API webhook (WHATSAPP_CLOUD_WEBHOOK_PORT)
+      - "127.0.0.1:3978:3978"   # Microsoft Teams webhook (TEAMS_PORT)
+                                # Both loopback-only; cloudflared reaches them
+                                # over the internal Docker network, not these
+                                # mappings (kept for local curl tests only).
+                                # See ../shared/cloudflare-tunnel-setup.md.
       - "9119:9119"   # web dashboard (if HERMES_DASHBOARD=1)
+
+  # Exposes hermes's per-platform webhook listeners (127.0.0.1-only
+  # otherwise) over public HTTPS hostnames, for channels that need
+  # Meta/Microsoft to reach them — WhatsApp Business Cloud API (port 8090)
+  # and Microsoft Teams (port 3978), each its own listener, not a shared
+  # one. Telegram needs none of this (it polls outbound). Only starts doing
+  # anything once CLOUDFLARE_TUNNEL_TOKEN is set in .env — see
+  # ../shared/cloudflare-tunnel-setup.md.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    env_file:
+      - .env
+    depends_on:
+      - hermes

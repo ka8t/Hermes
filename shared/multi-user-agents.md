@@ -86,6 +86,17 @@ This is currently **Docker-only, on the VPS configuration**
 both platforms' native (no-Docker) paths don't yet have an equivalent —
 see each platform's README, "Scripts reference".
 
+`provision-user.sh` isn't restricted to Telegram — `gateway.profile_routes`
+routes any platform Hermes's gateway supports. WhatsApp and Microsoft
+Teams (see [`whatsapp-setup.md`](whatsapp-setup.md) /
+[`teams-setup.md`](teams-setup.md), tracked in
+[issue #16](https://github.com/ka8t/Hermes/issues/16)) work the same way
+once configured — see the script's own header comment for what each
+platform's `<chat_id>` argument should be. Neither channel has been
+verified against a real account yet, so treat the multi-user path for
+them as unverified too until [issue #20](https://github.com/ka8t/Hermes/issues/20)
+confirms it end-to-end.
+
 ## Sources
 
 - Profiles, `hermes profile create`, `--clone-from`: [hermes-agent.nousresearch.com/docs/user-guide/profiles](https://hermes-agent.nousresearch.com/docs/user-guide/profiles)

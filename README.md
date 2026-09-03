@@ -132,6 +132,9 @@ Hermes/
 - [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md) — official binaries used, per platform
 - [`shared/enterprise-safety.md`](shared/enterprise-safety.md) — the approvals default, and what it doesn't cover
 - [`shared/multi-user-agents.md`](shared/multi-user-agents.md) — one Hermes profile per user, onboarding, current platform coverage
+- [`shared/cloudflare-tunnel-setup.md`](shared/cloudflare-tunnel-setup.md) — public HTTPS exposure for WhatsApp/Teams (unverified — see [#16](https://github.com/ka8t/Hermes/issues/16))
+- [`shared/whatsapp-setup.md`](shared/whatsapp-setup.md) — WhatsApp Business Cloud API channel (unverified)
+- [`shared/teams-setup.md`](shared/teams-setup.md) — Microsoft Teams channel (unverified)
 
 ## Security
 
