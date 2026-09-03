@@ -9,16 +9,17 @@ between them so you can list more than one model and switch between them
 from inside Hermes, rather than being locked to whatever was configured at
 install time.
 
-Two complete configurations, independent from each other:
+Two complete configurations, independent from each other, **each with both
+a Docker path and a native (no-Docker-at-all) path** for every component:
 
 | Configuration | Where | Model serving | Hermes | Guide |
 |---|---|---|---|---|
-| **macOS ARM64** | An Apple Silicon Mac | native (Metal acceleration) | Docker (`linux/arm64`) | [`macos-arm64/`](macos-arm64/) |
-| **Linux x86-64** | A rented VPS | Docker (CPU) | Docker (`linux/amd64`) | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
+| **macOS ARM64** | An Apple Silicon Mac | native (Metal acceleration) — same either way | Docker (`linux/arm64`) *or* native | [`macos-arm64/`](macos-arm64/) |
+| **Linux x86-64** | A rented VPS | Docker (CPU) *or* native | Docker (`linux/amd64`) *or* native | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
 
 Both wire Hermes to Telegram (see
 [`shared/telegram-setup.md`](shared/telegram-setup.md)), ship one model by
-default — **Qwen2.5-Coder-7B-Instruct** in `Q4_K_M` (see
+default — **Meta-Llama-3.1-8B-Instruct** in `Q4_K_M` (see
 [`shared/model-notes.md`](shared/model-notes.md), and
 [`shared/managing-models.md`](shared/managing-models.md) to add more) — and
 default to official **prebuilt binaries** rather than building anything from
@@ -33,15 +34,18 @@ enterprise-safe approval default so nothing destructive ever runs without
 an explicit human answer (see
 [`shared/enterprise-safety.md`](shared/enterprise-safety.md)).
 
-## Why native on Mac but in Docker on the VPS?
+## Why native on Mac but Docker by default on the VPS?
 
 Docker Desktop for Mac cannot expose the Metal GPU to a container — running
 `llama-server` inside it would fall back to CPU-only inference. On a Mac,
-llama-swap and the `llama-server` it spawns therefore run natively (full
-Metal access), while only Hermes — which just needs to call an HTTP API, no
-GPU required — runs in Docker. On a regular Linux VPS (no dedicated GPU),
-this distinction doesn't apply: everything fits cleanly inside
-`docker-compose.yml`, model serving included.
+llama-swap and the `llama-server` it spawns therefore always run natively
+(full Metal access), while Hermes itself can go either way (Docker by
+default; native is documented too, see each platform's README). On a
+regular Linux VPS (no dedicated GPU), that distinction doesn't apply —
+Docker Compose is the simpler default for everything, model serving
+included — but a fully native path (no Docker anywhere) is documented as an
+alternative for both platforms, for anyone who'd rather not run Docker at
+all.
 
 ## Why these defaults?
 
@@ -72,8 +76,10 @@ cd linux-x86_64-vps && cat README.md
 
 ```
 Hermes/
-├── macos-arm64/          # native llama-swap + llama.cpp (Metal) + Hermes in Docker
-├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes, all in Docker Compose
+├── macos-arm64/          # native llama-swap + llama.cpp (Metal); Hermes in Docker or native
+│   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
+├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes: Docker Compose or fully native
+│   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
 └── shared/

@@ -1,0 +1,21 @@
+# Native (no-Docker) alternative to config/models.yaml.example. Copy to
+# ./data/models.yaml before the first ./scripts/run-llama-swap-native.sh
+# (see ../../shared/managing-models.md for how to add/remove models).
+#
+# ${env.LLAMA_SERVER_BIN}, ${env.MODELS_DIR}, ${env.MODEL_FILE},
+# ${env.LLAMA_CTX_SIZE} and ${env.LLAMA_THREADS} come from
+# run-llama-swap-native.sh, which exports them (as absolute paths) before
+# starting llama-swap. ${PORT} is llama-swap's own macro.
+
+healthCheckTimeout: 120
+
+models:
+  "llama-3.1-8b-instruct":
+    name: "Llama 3.1 8B Instruct (default)"
+    cmd: |
+      ${env.LLAMA_SERVER_BIN} --port ${PORT}
+      --model ${env.MODELS_DIR}/${env.MODEL_FILE}
+      --ctx-size ${env.LLAMA_CTX_SIZE}
+      --threads ${env.LLAMA_THREADS}
+      --jinja
+    ttl: 600

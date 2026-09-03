@@ -1,0 +1,21 @@
+[Unit]
+# Optional: runs llama-swap (native, no Docker) as a persistent systemd
+# service. See README.md, "Native alternative (no Docker at all)".
+#
+# Install:
+#   sudo cp scripts/llama-swap.service.example /etc/systemd/system/llama-swap.service
+#   # edit the two REPLACE_WITH_REPO_PATH occurrences below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now llama-swap
+Description=llama-swap (native, no Docker)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=REPLACE_WITH_REPO_PATH/linux-x86_64-vps
+ExecStart=REPLACE_WITH_REPO_PATH/linux-x86_64-vps/scripts/run-llama-swap-native.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

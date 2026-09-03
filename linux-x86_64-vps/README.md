@@ -30,6 +30,7 @@ Telegram messages.
 
 - An Ubuntu 22.04+ VPS (x86-64), at least 8 GB of RAM for a 7B model in `Q4_K_M`.
 - Root/sudo access over SSH.
+- Docker Engine + Compose plugin (installed by `provision.sh` if missing) — skip it entirely with the [native alternative](#native-alternative-no-docker-at-all) below.
 - A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
 
 ## Installation
@@ -122,6 +123,41 @@ docker compose exec hermes hermes backup -o /opt/data/backup-$(date +%Y%m%d).tar
 docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 ```
 
+## Native alternative (no Docker at all)
+
+Everything above runs in Docker Compose. If you'd rather not use Docker on
+this VPS at all, both `llama-swap`/`llama-server` and Hermes can run
+natively instead, via the same official binaries and installer this repo
+already relies on elsewhere:
+
+```bash
+# llama-swap + llama-server, natively (mirrors macos-arm64/'s native path)
+./scripts/download-prebuilt-llama-server.sh   # prints a path; paste it into .env as LLAMA_SERVER_BIN
+./scripts/download-llama-swap.sh              # fetches llama-swap itself
+mkdir -p models data
+# download a model into ./models/ — see ../shared/model-notes.md
+cp config/models.yaml.example.native data/models.yaml
+./scripts/run-llama-swap-native.sh            # keep running, or install as a systemd service:
+#   sudo cp scripts/llama-swap.service.example /etc/systemd/system/llama-swap.service
+#   # edit the REPLACE_WITH_REPO_PATH occurrences, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now llama-swap
+
+# Hermes, natively
+./scripts/install-hermes-native.sh    # curl | bash the official installer, idempotent
+./scripts/setup-hermes-native.sh      # seeds ~/.hermes with this repo's config, approvals default, and skills
+hermes gateway install                # sets up its own systemd user service
+hermes gateway start
+hermes gateway setup                  # once, to wire up Telegram
+```
+
+`setup-hermes-native.sh` never overwrites an existing `~/.hermes/config.yaml`
+or `.env` — same "seed once" rule Hermes's own Docker image follows. The
+seeded `config.yaml` points at `http://127.0.0.1:8080/v1` — plain localhost,
+since both processes now run directly on this VPS with no Docker networking
+involved. Verification, troubleshooting, and everything else on this page
+apply the same way — run `hermes doctor` / `hermes gateway status` directly
+instead of through `docker compose exec hermes`.
+
 ## Managing models
 
 Edit `data/models.yaml` to add, change, or remove a model — the container is
@@ -149,4 +185,5 @@ change without a restart. See
 - Hermes image and volumes: [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
 - `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
 - Hermes dashboard auth (fail-closed on non-loopback binds): [hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard](https://hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard)
+- Native install / `HERMES_HOME` / `hermes gateway install`: [hermes-agent.nousresearch.com/docs/getting-started/installation](https://hermes-agent.nousresearch.com/docs/getting-started/installation) and [reference/cli-commands](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)
 - Telegram variables: [hermes-agent.nousresearch.com/docs/user-guide/messaging](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/)

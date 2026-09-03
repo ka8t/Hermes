@@ -39,7 +39,7 @@ llama-swap via `host.docker.internal`.
 ## Prerequisites
 
 - An Apple Silicon Mac (M1/M2/M3/M4...).
-- [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) — only used for the `hermes` container.
+- [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) — only used for the `hermes` container; skip it entirely with the [native alternative](#native-alternative-no-docker-at-all) below.
 - **No compiler needed**: both `llama-server` and `llama-swap` are fetched as
   official prebuilt binaries (Metal included) by default — see
   [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md). Xcode
@@ -155,6 +155,48 @@ docker compose exec hermes hermes backup -o /opt/data/backup-$(date +%Y%m%d).tar
 docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 ```
 
+## Native alternative (no Docker at all)
+
+Everything above already runs `llama-server`/llama-swap natively — the only
+Docker dependency on this platform is the `hermes` container itself. If you'd
+rather not use Docker Desktop at all, install Hermes natively too, via the
+same official installer this project already relies on:
+
+```bash
+./scripts/install-hermes-native.sh    # curl | bash the official installer, idempotent
+./scripts/setup-hermes-native.sh      # seeds ~/.hermes with this repo's config, approvals default, and skills
+```
+
+`setup-hermes-native.sh` never overwrites an existing `~/.hermes/config.yaml`
+or `.env` — same "seed once" rule Hermes's own Docker image follows — so
+re-running it later is safe. It writes a `config.yaml` pointing at
+`http://127.0.0.1:8080/v1` (plain localhost — no `host.docker.internal`
+workaround needed once Hermes itself isn't containerized), sets
+`approvals.mode: manual` (see
+[`../shared/enterprise-safety.md`](../shared/enterprise-safety.md)), and
+copies this repo's [`skills/agent-creation`](../skills/agent-creation/) into
+`~/.hermes/skills/ka8t-hermes/`.
+
+Then, same two terminals as before, just without `docker compose`:
+
+```bash
+# terminal 1 — the model (identical to the Docker path)
+./scripts/run-llama-swap.sh
+
+# terminal 2 — Hermes, natively, as a persistent launchd service
+hermes gateway install
+hermes gateway start
+hermes gateway setup     # once, to wire up Telegram
+```
+
+`hermes gateway install` sets up its own `launchd` service
+(`ai.hermes.gateway-default`) — no custom service file needed, unlike
+llama-swap's optional one (see
+[`scripts/com.hermes.llama-swap.plist.example`](scripts/com.hermes.llama-swap.plist.example)).
+Verification, troubleshooting, and everything else on this page apply the
+same way — the only difference is `hermes doctor` / `hermes gateway status`
+run directly instead of through `docker compose exec hermes`.
+
 ## Troubleshooting
 
 | Symptom | What to check |
@@ -177,3 +219,4 @@ docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 - `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
 - Hermes dashboard auth (fail-closed on non-loopback binds): [hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard](https://hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard)
 - `host.docker.internal` on Docker Desktop for Mac: [official Docker documentation](https://docs.docker.com/desktop/networking/)
+- Native install / `HERMES_HOME` / `hermes gateway install`: [hermes-agent.nousresearch.com/docs/getting-started/installation](https://hermes-agent.nousresearch.com/docs/getting-started/installation) and [reference/cli-commands](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)
