@@ -34,6 +34,47 @@ enterprise-safe approval default so nothing destructive ever runs without
 an explicit human answer (see
 [`shared/enterprise-safety.md`](shared/enterprise-safety.md)).
 
+## How it works
+
+Three separate pieces, each with one job, connected through Hermes Agent at
+the center:
+
+**Hermes Agent** is the orchestrator. It holds your conversation memory,
+knows a set of tasks it can perform (its "skills"), and decides what to do
+with every message it receives — but on its own it can neither hear nor
+speak, nor think. It needs two things plugged into it: a gateway to
+receive/send human messages, and a brain (an LLM) to generate its replies
+and decide which tools to call.
+
+**Telegram** is the gateway used here — the channel that lets a human talk
+to Hermes from their phone, rather than needing an SSH/terminal connection
+to the machine running it. Hermes Agent supports several gateways (Discord,
+Slack, email...); Telegram was chosen for this project because it's the
+fastest to set up (one bot token from BotFather, one allow-list of user
+IDs).
+
+**llama.cpp (via llama-swap in front of it)** is the local brain. It's the
+engine that actually runs the language model (loads the GGUF weights,
+generates tokens) and exposes it over an OpenAI-compatible HTTP API. Hermes
+Agent sends it a request every time it needs to "think" — to reply, to
+decide whether to use a tool, or to follow a skill.
+
+The full path a message takes:
+
+```
+Phone (Telegram)
+  → Telegram Bot API
+    → Hermes Agent's Telegram gateway
+      → Hermes's agent loop (assembles system prompt + skills + tools + history)
+        → HTTP request to llama-swap
+          → llama-server (llama.cpp) generates the reply
+        ← reply (plain text, or a structured tool call)
+      ← Hermes runs the tool if needed, updates its memory
+    ← Telegram gateway sends the final reply
+  ← Telegram Bot API
+Phone (Telegram)
+```
+
 ## Why native on Mac but Docker by default on the VPS?
 
 Docker Desktop for Mac cannot expose the Metal GPU to a container — running
