@@ -29,6 +29,13 @@ model:
   base_url: http://127.0.0.1:8080/v1
   context_length: 65536
 
+# Hermes's local-endpoint auto-detection caps the stream-stale-timeout at
+# 900s; a CPU-only VPS can need longer than that just for prompt processing
+# before the first token. See ../../shared/telegram-setup.md, "Why the
+# first reply can take a very long time".
+agent:
+  local_stream_stale_timeout: 3600
+
 # Every dangerous action requires an explicit human answer — no silent
 # auto-approval. See ../../shared/enterprise-safety.md.
 approvals:

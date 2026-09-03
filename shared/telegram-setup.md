@@ -139,6 +139,21 @@ of Hermes itself. See
 [`prebuilt-binaries.md`](prebuilt-binaries.md) for the hardware trade-offs
 this repo makes.
 
+**This 25-40 minutes can exceed Hermes's own stream timeout, and then the
+request fails outright instead of just being slow.** Hermes detects a local
+endpoint and raises its stream-stale-timeout ceiling to 900 seconds (from a
+180s base) — but that ceiling is still a hard cutoff, and a slow CPU-only
+prefill can genuinely take longer than 900s to produce its first token. When
+that happens, the logs show `Stream drop on attempt N/3 — retrying` with
+`bytes=0 chunks=0` (confirmed in this repo's own VPS testing, 2026-09-03),
+and after 3 failed attempts the request is dropped entirely. Both VPS config
+templates in this repo (`linux-x86_64-vps/config/config.yaml.example` and
+`scripts/setup-hermes-native.sh`) already set `agent.local_stream_stale_timeout:
+3600` to cover this; if you're not using one of those, add it to
+`config.yaml` yourself (or set the `HERMES_LOCAL_STREAM_STALE_TIMEOUT` env
+var), sized above your own measured prefill time (`hermes prompt-size`
+divided by your model's measured tokens/second).
+
 ## Troubleshooting
 
 | Symptom | What actually happened (or what to check) |

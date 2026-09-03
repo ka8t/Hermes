@@ -14,6 +14,16 @@ model:
   base_url: http://llama-swap:8080/v1
   context_length: 65536
 
+# Hermes auto-detects a local endpoint and raises its stream-stale-timeout
+# ceiling to 900s (from a 180s base), but a CPU-only VPS can need longer
+# than that just for prompt processing before the first token — see
+# "Why the first reply can take a very long time" in
+# ../../shared/telegram-setup.md. Without this override, Hermes drops the
+# stream at 900s with zero bytes received and retries, 3 times, then gives
+# up (visible as "Stream drop on attempt N/3" in the logs).
+agent:
+  local_stream_stale_timeout: 3600
+
 # Every dangerous action requires an explicit human answer — no silent
 # auto-approval, on any deployment size. See ../../shared/enterprise-safety.md
 # for exactly what this does and does not cover.
