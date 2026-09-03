@@ -47,6 +47,11 @@ llama-swap via `host.docker.internal`.
   `llama-server` build (`LLAMA_BUILD_FROM_SOURCE=1`).
 - A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
 
+CPU thread sizing on macOS isn't verified against real numbers the way
+the VPS's is (Metal handles most of the work) — see
+[`../shared/hardware-sizing.md`](../shared/hardware-sizing.md) and issue
+[#14](https://github.com/ka8t/Hermes/issues/14).
+
 > [`scripts/find-or-build-llama-server.sh`](scripts/find-or-build-llama-server.sh)
 > picks, in order: an explicit `LLAMA_SERVER_BIN` override, an already-built
 > `~/Documents/Code/llama.cpp/build/bin/llama-server`, a Homebrew install, the
