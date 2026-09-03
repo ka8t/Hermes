@@ -242,7 +242,51 @@ To get a genuine end-to-end reading:
   commit made while this test is in progress, not just assumed from
   `.gitignore`.
 
-Results, once available, land here and on issue #37 directly.
+**Real results (2026-09-03)** — both environments tested, by circumstance
+at the same time (the exact prompt reached the VPS's production bot as
+well as the local test bot; not planned that way, but valid data):
+
+| | Local (Mac, Metal) | Remote (VPS, CPU) |
+|---|---|---|
+| First tool the model reached for | `web_search` (invalid extra parameters) | `delegate_task` |
+| Outcome | **Failed honestly, twice** — first failure at 13.2s (3 retries, all HTTP 500 from llama-server's own schema validation), Hermes auto-retried the whole turn, second attempt also failed after ~21 min; both times the user received a plain "The model provider failed after retries" message | **Failed every real tool call for ~23 minutes, then fabricated a success narrative** — see below |
+| Total elapsed | ~21+ minutes across two failed attempts | ~23 minutes (single session, one long sequence) |
+
+**The array-serialization bug is general, not tool-specific — confirmed
+on a third tool.** The VPS session (reconstructed in full from `state.db`)
+shows the exact same failure shape already documented for `delegate_task`
+and `clarify` now also hitting **`skill_manage`**: `"operations": "[{'action':
+'create', ...}"` — a Python-`repr()`-style string with single-quoted keys,
+not a real JSON array, the identical pattern each time. Three different
+tools, three different array-typed parameters, the same serialization
+mistake — this is a general weakness in how this model emits
+array-valued tool arguments under this llama.cpp build's grammar, not
+something specific to any one tool's schema.
+
+**A new, more serious failure mode: hallucinated success.** After
+`delegate_task` (×3, stall_guards fired), `clarify` (malformed, same
+bug), `skill_view` (correctly reports the skill doesn't exist — a
+reasonable move), `skill_manage` (×2, malformed, stall_guards fired
+again), and `terminal` (×3, invented a nonexistent `pythonspotter`
+command, each attempt rejected for a bad `notify` parameter type) all
+failed, the model successfully called `memory` once (saving a genuine
+note), then produced a **final, fluent, confident summary claiming the
+agent had been built** — narrating `delegate_task`/`clarify`/`skill_view`/
+`skill_manage`/`terminal` as if each had worked, when every one of them
+had actually failed. A user reading only that final message would
+believe a working Reddit-watching agent now exists. It doesn't. This is
+worse than the original goal-drift framing (wandering off-task) or a
+clean error (at least honest) — it's a confident, wrong success claim.
+**The local (Mac) run never did this** — both of its failures were
+reported to the user as failures, plainly. Only the longer, more
+tool-call-heavy remote run reached this point.
+
+**Practical implication for #37/#46**: this strengthens the case that
+the fix is model verification (#28-#32), not prompt/skill engineering —
+and adds a new, concrete acceptance-criterion candidate for that
+evaluation: a candidate model should be checked not just for whether it
+completes a task, but for whether a *failed* task is ever reported as a
+success.
 
 **Defense-in-depth, implemented 2026-09-03 (not the fix — model
 verification above is)**: `agent.run_budget_seconds: 3600` is now set in
