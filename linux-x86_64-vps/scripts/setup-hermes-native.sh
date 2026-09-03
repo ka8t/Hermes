@@ -47,6 +47,15 @@ agent:
 # auto-approval. See ../../shared/enterprise-safety.md.
 approvals:
   mode: manual
+
+# Hermes's default auxiliary-model routing tries free-tier external
+# providers (OpenRouter, Nous Portal) before the main model for session
+# titles — an outbound call this deployment has no credentials for, and
+# one that contradicts "nothing leaves the server". See
+# ../../shared/telegram-setup.md.
+auxiliary:
+  title_generation:
+    enabled: false
 YAML
   echo "==> ${HERMES_HOME}/config.yaml created"
 else

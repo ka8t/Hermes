@@ -38,3 +38,17 @@ agent:
 # for exactly what this does and does not cover.
 approvals:
   mode: manual
+
+# Hermes's default auxiliary-model routing tries free-tier external
+# providers (OpenRouter, Nous Portal) before falling back to the main
+# model — observed live as "Auxiliary: marking openrouter/nous unhealthy
+# (payment / credit error)" outbound calls, each failing since this
+# deployment configures neither. Beyond contradicting "nothing leaves the
+# server", each failed attempt also contends for this box's scarce CPU
+# while the main model is mid-response. Title generation is the only
+# auxiliary task Hermes runs unprompted (compression/vision only run when
+# actually needed), so disabling it is enough — manual titles still work
+# via /title.
+auxiliary:
+  title_generation:
+    enabled: false

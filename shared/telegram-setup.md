@@ -154,6 +154,30 @@ templates in this repo (`linux-x86_64-vps/config/config.yaml.example` and
 var), sized above your own measured prefill time (`hermes prompt-size`
 divided by your model's measured tokens/second).
 
+### Hermes calling out to OpenRouter/Nous even though you never configured them
+
+Confirmed live in this repo's own VPS testing, 2026-09-03: the logs showed
+`Auxiliary: marking openrouter unhealthy (payment / credit error)` and the
+same for `nous`, followed by `Title generation failed: Request timed out`
+— all for a plain conversation, no explicit request to use another
+provider. Hermes's default auxiliary-model routing (used for
+session-title generation, image/vision analysis, and context compression)
+tries free-tier external providers first, which:
+
+- contradicts this repo's "nothing leaves the server" premise — an
+  outbound network call is attempted regardless of whether it has
+  credentials to succeed, and
+- on a CPU-only VPS, contends for the same scarce CPU the main model is
+  already using, adding latency to the response you're actually waiting
+  on.
+
+Both VPS config templates in this repo set
+`auxiliary.title_generation.enabled: false` to stop it (session titles
+still work manually via `/title`). Title generation is the only auxiliary
+task Hermes runs unprompted — compression and vision only fire when
+actually needed — so this one setting covers it for a Telegram-only text
+deployment like this one.
+
 ## Troubleshooting
 
 | Symptom | What actually happened (or what to check) |

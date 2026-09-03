@@ -19,3 +19,12 @@ model:
 # for exactly what this does and does not cover.
 approvals:
   mode: manual
+
+# Hermes's default auxiliary-model routing tries free-tier external
+# providers (OpenRouter, Nous Portal) before falling back to the main
+# model for session-title generation — an outbound call this deployment
+# doesn't configure credentials for, and one that contradicts "nothing
+# leaves the server". Manual titles still work via /title.
+auxiliary:
+  title_generation:
+    enabled: false
