@@ -1,5 +1,7 @@
 # Hermes Agent + llama.cpp — Linux x86-64 VPS (Docker)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 A fully Docker Compose stack, designed for a small Ubuntu VPS (e.g. a
 Hostinger KVM2, 2 vCPU / 8 GB RAM): a `llama-swap` container serves one or
 more GGUF models locally (loading/unloading them on demand — see
@@ -25,6 +27,20 @@ Telegram messages.
                                                                     ▼
                                                              Telegram (bot)
 ```
+
+## Table of contents
+
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Starting](#starting)
+- [Verification](#verification)
+- [Common operations](#common-operations)
+- [Native alternative (no Docker at all)](#native-alternative-no-docker-at-all)
+- [Managing models](#managing-models)
+- [Scripts reference](#scripts-reference)
+- [Troubleshooting](#troubleshooting)
+- [Sources](#sources)
 
 ## Prerequisites
 

@@ -1,5 +1,16 @@
 # Telegram setup
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
+## Table of contents
+
+- [1. Create the bot with @BotFather](#1-create-the-bot-with-botfather)
+- [2. Get your Telegram user ID](#2-get-your-telegram-user-id)
+- [3. Fill in `.env`](#3-fill-in-env)
+- [4. Apply the credentials](#4-apply-the-credentials)
+- [5. Verify](#5-verify--and-dont-trust-a-stale-status)
+- [Troubleshooting](#troubleshooting)
+
 Common to both configurations (macOS and Linux VPS): Hermes only talks to
 Telegram once a bot has been created and its credentials filled into `.env`.
 Every step below was walked through for real (including the mistakes) while

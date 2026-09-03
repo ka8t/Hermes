@@ -1,5 +1,7 @@
 # Hermes Agent + llama.cpp — macOS Apple Silicon (ARM64)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 `llama-server` runs **natively** on the Mac to take advantage of **Metal** GPU
 acceleration — Docker Desktop for Mac cannot expose the Metal GPU to a
 container (the Linux containers it runs have no access to it), so running it
@@ -35,6 +37,20 @@ llama-swap via `host.docker.internal`.
                                                      ▼
                                               Telegram (bot)
 ```
+
+## Table of contents
+
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Starting](#starting)
+- [Verification](#verification)
+- [Running llama-swap in the background (optional)](#running-llama-swap-in-the-background-optional)
+- [Managing models](#managing-models)
+- [Common operations](#common-operations)
+- [Native alternative (no Docker at all)](#native-alternative-no-docker-at-all)
+- [Scripts reference](#scripts-reference)
+- [Troubleshooting](#troubleshooting)
+- [Sources](#sources)
 
 ## Prerequisites
 

@@ -1,5 +1,7 @@
 # Multi-user agent isolation
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 By default, this repo's stack serves **one** Telegram allow-list
 (`TELEGRAM_ALLOWED_USERS`) into **one** Hermes profile — every allowed
 person shares the same memory, the same cron jobs, the same "agents"

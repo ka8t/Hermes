@@ -1,5 +1,18 @@
 # Choosing a GGUF model for llama.cpp
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
+## Table of contents
+
+- [Non-negotiable constraint: context size](#non-negotiable-constraint-context-size)
+- [The flag that makes tools actually work: `--jinja`](#the-flag-that-makes-tools-actually-work---jinja)
+- [Default model used here](#default-model-used-here)
+- [macOS CPU thread count](#macos-cpu-thread-count-confirmed-not-to-matter-with-full-metal-offload-14)
+- [Two models this repo tried and rejected](#two-models-this-repo-tried-and-rejected-and-why-read-before-changing-the-default)
+- [Known limitation: peg-native format parse failures](#known-limitation-intermittent-peg-native-format-parse-failures)
+- [Known limitation: malformed nested tool-call arguments](#known-limitation-malformed-nested-tool-call-arguments-beyond-clarify)
+- [Going further](#going-further)
+
 ## Non-negotiable constraint: context size
 
 Hermes needs at least a **64,000-token** context window to work properly

@@ -1,5 +1,7 @@
 # Using official prebuilt binaries (llama.cpp and llama-swap)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 Both configurations in this repo default to prebuilt, ready-to-run binaries
 rather than compiling anything — faster to get going, and doesn't require a
 compiler toolchain at all. This note documents what's actually in them

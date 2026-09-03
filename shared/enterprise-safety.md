@@ -1,5 +1,7 @@
 # Enterprise safety: approvals and consent
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 Both reference configurations, and the packaged `ghcr.io/ka8t/hermes` image
 (see [`../docker/`](../docker/)), ship with one deliberate override on top
 of Hermes's own defaults:

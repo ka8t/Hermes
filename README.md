@@ -1,7 +1,45 @@
 # Hermes
 
-Deployment of [Hermes Agent](https://github.com/NousResearch/hermes-agent)
-(Nous Research's open-source, self-hosted AI agent) wired to **local** LLMs
+See also: [Glossary](docs/GLOSSARY.md) for acronyms/technical terms used below.
+
+A self-hosted AI agent that runs entirely on your own hardware — no
+cloud API key, no data sent to a third party — reachable from Telegram,
+and built to be studied and adapted, not only deployed as-is.
+
+## What this actually is
+
+- **A working example, not just a demo.** Clone it, follow one guide, and
+  you have a real AI agent answering you on Telegram within an hour,
+  running a real local model on your own machine or a rented server.
+- **A base for learning how the pieces fit together.** Agent orchestration
+  ([Hermes Agent](https://github.com/NousResearch/hermes-agent)), local
+  model serving ([llama.cpp](https://github.com/ggml-org/llama.cpp) +
+  [llama-swap](https://github.com/mostlygeek/llama-swap)), and — as
+  specced work in this repo progresses — retrieval-augmented generation
+  (RAG), model evaluation, and multi-channel routing. Every design
+  decision in this repo is written down with its reasoning (see
+  `docs/ARCHITECTURE.md` and the linked issues below), not just the code.
+- **A starting point to adapt, not a fixed product.** Swap the model, add
+  your own documents to search over, wire up a different channel, scale
+  it to more than one user — the two reference deployments below are
+  meant to be forked and changed, for a personal assistant or an
+  enterprise deployment alike.
+
+## Who this is for
+
+- Someone who wants a working AI agent without sending their data to a
+  cloud provider.
+- Someone learning how an agent, a local model, and a channel (Telegram
+  today) actually connect in a real, running system — not just in
+  theory.
+- Someone who wants a documented starting point to adapt: a different
+  model, a company's own documents (RAG), a different channel, more than
+  one user.
+
+## How it's built
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous
+Research's open-source, self-hosted AI agent) is wired to **local** LLMs
 served by [llama.cpp](https://github.com/ggml-org/llama.cpp) — no external
 API key, no data sent to a third-party service, everything runs on hardware
 you own or rent. [llama-swap](https://github.com/mostlygeek/llama-swap) sits
@@ -123,11 +161,13 @@ Hermes/
 │   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
+├── eval/                 # model/hardware evaluation: BFCL + llama-bench (see shared/model-evaluation.md)
 ├── docs/ARCHITECTURE.md  # living system architecture doc, diagrams — kept current on every change
 └── shared/               # platform-independent docs, linked from both guides
 ```
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components, deployment topologies, message flow, and what's specced vs. live
+- [`docs/GLOSSARY.md`](docs/GLOSSARY.md) — acronyms and technical terms used across this repo's docs
 - [`shared/telegram-setup.md`](shared/telegram-setup.md) — bot creation, environment variables
 - [`shared/model-notes.md`](shared/model-notes.md) — GGUF model choice, context constraints
 - [`shared/managing-models.md`](shared/managing-models.md) — add / switch / remove models via llama-swap
@@ -139,7 +179,7 @@ Hermes/
 - [`shared/teams-setup.md`](shared/teams-setup.md) — Microsoft Teams channel (unverified)
 - [`shared/hardware-sizing.md`](shared/hardware-sizing.md) — check your real CPU/RAM/GPU before trusting this repo's documented performance numbers
 - [`shared/gpu-setup.md`](shared/gpu-setup.md) — optional NVIDIA/AMD/Intel GPU support for the Linux VPS path (implemented, not live-verified — see [#13](https://github.com/ka8t/Hermes/issues/13))
-- [`shared/model-evaluation.md`](shared/model-evaluation.md) — BFCL (tool-calling reliability) and `llama-bench` (throughput) evaluation design (specced, not yet implemented — see [#28](https://github.com/ka8t/Hermes/issues/28))
+- [`shared/model-evaluation.md`](shared/model-evaluation.md) — BFCL (tool-calling reliability, implemented, partially live-verified — `eval/`) and `llama-bench` (throughput, specced only) evaluation (see [#28](https://github.com/ka8t/Hermes/issues/28))
 - [`shared/model-comparison.md`](shared/model-comparison.md) — `/compare`, an in-channel command to ask several models the same question side by side (specced, not yet implemented — see [#39](https://github.com/ka8t/Hermes/issues/39))
 
 ## Security

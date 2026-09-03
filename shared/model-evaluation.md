@@ -1,11 +1,28 @@
 # Model and configuration evaluation (issues #28-#32)
 
-**Status: specced, not yet implemented.** This page documents the
-design an admin will be able to reproduce once #29-#31 are built — the
-commands below are the intended shape, verified against the official
-tools' own docs, but no wrapper script or results database exists in
-this repo yet. Written before implementation, per this repo's
-specs → issues → documentation → implementation workflow.
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
+**Status: #29's BFCL path is implemented and partially live-verified;
+#30/#31 are still specced only.** Written before implementation per this
+repo's specs → issues → documentation → implementation → tests
+workflow — this section was updated after live-testing surfaced several
+real corrections to the original design (wrong env var names, missing
+dependencies, and a genuine model-routing incompatibility with
+llama-swap). See `eval/setup-bfcl.sh`, `eval/run-bfcl.sh`, and
+`eval/model_alias_proxy.py`.
+
+**Honest test status (2026-09-03)**: after fixing all five issues listed
+below, a live run against this deployment's own llama-swap (a MacBook
+Pro M1) completed **100 of 399** "simple" test cases with zero errors —
+real, correct proof that the model-routing fix and request serialization
+both work. The run was then interrupted by an unrelated environment
+issue (a long-lived background process losing its connection to this
+session) before finishing the remaining cases, twice. No accuracy
+percentage for the full "simple" category exists yet — the pipeline is
+proven correct, a complete score is not yet in hand. Re-running to
+completion (`cd eval && ./run-bfcl.sh 127.0.0.1 8080`, ideally left
+running uninterrupted in its own terminal rather than through this kind
+of session) is the natural next step, not a new implementation task.
 
 Two independent tools, two independent questions:
 
@@ -19,27 +36,78 @@ by any admin on their own hardware (#28's "done when").
 
 ## Model evaluation: BFCL (#29)
 
-**Open question from #28, now resolved** (verified against BFCL's own
-docs at
-[github.com/ShishirPatil/gorilla](https://github.com/ShishirPatil/gorilla),
-not assumed): BFCL does not require vLLM. Its `--skip-server-setup` flag
-bypasses BFCL's own vLLM/SGLang server-management phase and generates
-responses against a server you already have running — llama-swap
-qualifies, since it exposes the same OpenAI-compatible
-`/v1/chat/completions` shape BFCL expects.
+**Open question from #28, resolved**: BFCL does not require vLLM. Its
+`--skip-server-setup` flag bypasses BFCL's own vLLM/SGLang
+server-management phase and generates responses against a server you
+already have running — llama-swap qualifies.
 
 ```bash
-# .env for bfcl-eval:
-LOCAL_SERVER_ENDPOINT=127.0.0.1   # or the VPS's llama-swap host
-LOCAL_SERVER_PORT=8080
-
-bfcl generate \
-  --model meta-llama/Llama-3.1-8B-Instruct-FC \
-  --test-category simple,parallel,multi_turn \
-  --skip-server-setup
+cd eval
+./setup-bfcl.sh                    # once: venv, bfcl-eval, tokenizer files
+./run-bfcl.sh 127.0.0.1 8080       # <llama-swap host> <llama-swap port>
 ```
 
-**The real constraint isn't the endpoint, it's the model handler.** BFCL
+Three real problems were found live-testing this, none documented
+upstream, all now handled by the two scripts above — worth knowing if
+you're debugging this yourself:
+
+1. **Missing dependencies.** `pip install bfcl-eval` alone doesn't run:
+   its Qwen support imports `soundfile` at module load time (crashes on
+   startup for every model, not just Qwen), and its local-inference path
+   imports `transformers` directly without declaring it as a dependency
+   — only bfcl-eval's own `oss-eval-vllm` extra pulls it in, and that
+   extra also drags in the full `vllm==0.8.5` package (GPU-oriented,
+   unused here since `--skip-server-setup` means vllm never serves
+   anything). `setup-bfcl.sh` installs `soundfile` and `transformers`
+   directly instead.
+2. **Wrong env var names.** BFCL's local-inference handler reads
+   `VLLM_ENDPOINT`/`VLLM_PORT` (confirmed directly in
+   `model_handler/local_inference/base_oss_handler.py`) — not
+   `LOCAL_SERVER_ENDPOINT`/`LOCAL_SERVER_PORT` as an earlier draft of
+   this doc claimed. Worse: BFCL loads its `.env` with
+   `python-dotenv(override=True)`, which silently **overwrites** any
+   shell-exported `VLLM_ENDPOINT`/`VLLM_PORT` with whatever's hard-coded
+   in bfcl-eval's own `.env.example` template
+   (`VLLM_ENDPOINT=localhost`, `VLLM_PORT=1053`) — exporting the env vars
+   has no effect. `run-bfcl.sh` edits the `.env` file directly.
+3. **The gated tokenizer.** BFCL's local-inference handler loads the
+   model's tokenizer via `transformers.AutoTokenizer`, from the model's
+   *original* HuggingFace repo — separate from and in addition to
+   llama-swap actually running inference. For Llama 3.1, that original
+   repo (`meta-llama/Llama-3.1-8B-Instruct`) is license-gated (requires a
+   HuggingFace account and accepting Meta's terms) — this deployment
+   doesn't use gated/account-walled sources anywhere else (the GGUF
+   itself comes from bartowski's ungated re-upload, see
+   `shared/model-notes.md`), so `setup-bfcl.sh` instead downloads just
+   the small tokenizer files (not model weights) from
+   [`NousResearch/Meta-Llama-3.1-8B-Instruct`](https://huggingface.co/NousResearch/Meta-Llama-3.1-8B-Instruct)
+   — confirmed ungated live (`"gated": false`, plain download, no
+   token needed; same underlying model/license as the GGUF already used,
+   just without HuggingFace's account-gate friction).
+4. **Model-name routing mismatch, the big one.** BFCL's local-inference
+   handler hard-codes the `"model"` field it sends in every request to
+   either `--local-model-path`'s filesystem path or its own internal
+   handler name (`meta-llama/Llama-3.1-8B-Instruct-FC`) — confirmed
+   directly in `base_oss_handler.py`'s `_query_prompting`
+   (`model=self.model_path_or_id`), no BFCL flag overrides this. Neither
+   value matches llama-swap's real model ID (`llama-3.1-8b-instruct`),
+   so llama-swap rejects every request with `"no router for requested
+   model"`. `eval/model_alias_proxy.py` sits between BFCL and llama-swap
+   specifically to fix this: it rewrites the `"model"` field to the real
+   ID (read from llama-swap's own `/v1/models`, not hard-coded) before
+   forwarding — `run-bfcl.sh` starts it automatically, no manual config
+   needed.
+5. **Concurrency mismatch.** BFCL's local-inference path always fires up
+   to 100 concurrent requests (`ThreadPoolExecutor(max_workers=100)`,
+   hard-coded, not affected by any BFCL flag) — correct for a real vLLM
+   server's continuous batching, wrong for a single llama-server instance
+   serving one model, which returned `429 Too many requests` for nearly
+   every request beyond the first. `model_alias_proxy.py` serializes
+   inference requests with a lock rather than changing the actual
+   deployment's llama-server concurrency flags — keeps eval traffic from
+   affecting production serving behavior.
+
+**The real remaining constraint isn't the endpoint, it's the model handler.** BFCL
 doesn't accept an arbitrary `--model` string — each model needs a
 registered handler (prompt formatting + response parsing) listed in
 BFCL's own `SUPPORTED_MODELS.md`. This repo's default model is already
@@ -140,19 +208,27 @@ deployment; #30's per-deployment benchmark does).
 
 ## What this page is not
 
-This is not a benchmark results archive — no actual BFCL or llama-bench
-run has happened yet for this repo's model list. It's the reproducible
-recipe an admin (or a future implementation of #29-#31) will follow.
-Real numbers belong in #30's results database once it exists, not in
+This is not a benchmark results archive — a partial BFCL run (100/399
+cases, see above) is the only real data point so far, and `llama-bench`
+hasn't been run at all for this repo's model list. This page is the
+reproducible recipe an admin (or a future implementation of #30-#31)
+will follow. Real, complete numbers belong in #30's results database
+once it exists, not in
 this doc.
 
 ## Sources
 
 - BFCL / `bfcl-eval` — official repository and docs:
   [github.com/ShishirPatil/gorilla](https://github.com/ShishirPatil/gorilla)
-  (`--skip-server-setup`, `LOCAL_SERVER_ENDPOINT`/`LOCAL_SERVER_PORT`,
-  `SUPPORTED_MODELS.md`'s Llama-3.1-Instruct-FC entries — all fetched and
-  read directly, not summarized from memory).
+  (`--skip-server-setup`, `SUPPORTED_MODELS.md`'s Llama-3.1-Instruct-FC
+  entries). `VLLM_ENDPOINT`/`VLLM_PORT` and the model-routing/concurrency
+  behavior above are confirmed directly from the installed package's own
+  source (`bfcl_eval/model_handler/local_inference/base_oss_handler.py`),
+  not the docs — the docs don't cover this level of detail and, on the
+  env var names, were actively wrong.
+- `NousResearch/Meta-Llama-3.1-8B-Instruct` — confirmed ungated live via
+  the HuggingFace API (`"gated": false`) and a plain unauthenticated
+  download (`200 OK`), same day.
 - BFCL leaderboard / methodology (ICML 2025):
   [gorilla.cs.berkeley.edu/leaderboard.html](https://gorilla.cs.berkeley.edu/leaderboard.html),
   [paper](https://proceedings.mlr.press/v267/patil25a.html).

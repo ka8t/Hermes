@@ -1,5 +1,7 @@
 # In-channel multi-model comparison: `/compare` (issue #39)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 **Status: specced, not yet implemented.** This page documents the design
 reached in a grilling session (2026-09-03) — the commands and config
 shown below are the intended shape, not something you can run yet.

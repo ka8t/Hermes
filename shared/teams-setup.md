@@ -1,5 +1,23 @@
 # Microsoft Teams setup
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
+## Table of contents
+
+- [How the bot responds](#how-the-bot-responds)
+- [1. Expose the webhook publicly first](#1-expose-the-webhook-publicly-first)
+- [2. Install the Teams CLI and log in](#2-install-the-teams-cli-and-log-in)
+- [3. Create the bot](#3-create-the-bot)
+- [4. Fill in `.env`](#4-fill-in-env)
+- [5. Install the app in Teams](#5-install-the-app-in-teams)
+- [Full configuration reference](#full-configuration-reference)
+- [Features](#features)
+- [Production deployment](#production-deployment)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+- [Status](#status)
+- [Sources](#sources)
+
 Unlike Telegram's polling, Teams delivers messages by calling a public
 HTTPS webhook — this VPS needs a publicly reachable endpoint. Bot
 registration goes through the `@microsoft/teams.cli` tool, not the Azure

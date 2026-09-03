@@ -1,5 +1,11 @@
 # Architecture
 
+This repo is meant to be read, not just run — see `README.md`'s "What
+this actually is" for the framing. This document is the detailed half of
+that: components, deployment topologies, data flow, and — in section 6 —
+an honest map of what's actually built versus only designed, so nothing
+here is taken on faith.
+
 Living document — **update this file in the same change** whenever
 something here stops being true (a new channel, a new data flow, a new
 deployment path, a change to routing/isolation, a new major dependency).
@@ -9,6 +15,19 @@ verified against a real deployment) or **specced** (issues exist,
 nothing built yet).
 
 Last updated: 2026-09-03.
+
+See also: [Glossary](GLOSSARY.md) for acronyms/technical terms used below.
+
+## Table of contents
+
+- [1. System overview](#1-system-overview)
+- [2. Deployment topologies (live)](#2-deployment-topologies-live)
+- [3. Message flow (Telegram)](#3-message-flow-telegram--live-verified)
+- [4. Multi-user profile isolation](#4-multi-user-profile-isolation-partially-live--5)
+- [5. Enterprise safety (live)](#5-enterprise-safety-live)
+- [6. Specced, not yet implemented](#6-specced-not-yet-implemented)
+- [7. Repository structure](#7-repository-structure)
+- [Sources](#sources)
 
 ## 1. System overview
 
@@ -183,7 +202,7 @@ built until its issue is closed and this section is updated:
 | WhatsApp Cloud API / Microsoft Teams channels | #16-#20 | Config/docs/scripts implemented, not live-verified (needs the admin's own Meta/Microsoft accounts) |
 | Hardware auto-detection (CPU/GPU) + mandatory inference benchmark | #11, #15 | CPU thread auto-detection live on both the Docker and native VPS paths (#12); GPU support for NVIDIA/AMD/Intel live on the VPS path (#13, not live-verified — no matching hardware); macOS thread count confirmed empirically not to matter with full Metal offload (#14); the mandatory real-throughput benchmark (#27) is live on both platforms, live-tested on both a CPU VPS and a real M1 Mac. Only #15 (hardware-sizing.md) remains partial, and only because it cross-links the above rather than needing new work itself |
 | Enterprise RAG (Google Drive, Confluence, SharePoint) | #21-#26, #33 | Specced only, nothing built. Two-tier model: a global admin-curated corpus + a private per-user collection per Hermes profile (#5), each usable independently and a private collection able to also draw on the global corpus — modeled on a real prior implementation (`my-ia-v2`'s `Corpus`/`Collection` schema). Both tiers support web sources as well as documents. Model distillation was considered alongside this and explicitly rejected as out of scope — see #21 |
-| Model/config evaluation harness | #28-#32 | Documented, not yet implemented — see `shared/model-evaluation.md`. BFCL for tool-calling reliability (confirmed to work against llama-swap directly via `--skip-server-setup`, no vLLM needed) and `llama-bench -o sql` for hardware/config throughput (its own SQL output already gives the "internal results database" #30 wants, no custom schema needed) — both verified against official docs. Model list is bounded to whatever BFCL already has a handler for. Continuous re-evaluation (#31) still unscoped |
+| Model/config evaluation harness | #28-#32 | BFCL path (#29) implemented, partially live-verified (100/399 test cases completed with zero errors before an unrelated environment interruption — no full accuracy score yet) — `eval/setup-bfcl.sh`, `eval/run-bfcl.sh`, `eval/model_alias_proxy.py` (a small relay fixing a real model-name routing mismatch between BFCL and llama-swap, plus request serialization for llama-server's single-instance concurrency) — see `shared/model-evaluation.md` for every real bug found and fixed. `llama-bench -o sql` for hardware/config throughput (#30) and continuous re-evaluation (#31) remain specced only |
 | Instant message-received acknowledgment | #34 | A `pre_gateway_dispatch` hook sending an immediate ack independent of backend LLM speed, since Hermes's native `typing_indicator`/`long_running_notifications` can't show anything during pure prefill (no bytes come back from the model until the first token) |
 | Global (cross-profile) stats/logs/KPI dashboard | #35 | Per-user stats already covered by #5's per-profile dashboards natively (usage/cost analytics, host stats, cron history already exist in Hermes's own dashboard); the gap is cross-profile aggregation for an admin view — that part is unbuilt |
 | Deployment scripts ported from bash to Rust | #36 | Scope corrected during grilling: this repo's own scripts, not Hermes Agent itself (rejected, same reasoning as distillation in #21) — and explicitly not for speed (scripts are network/subprocess-bound, language-independent); real motivation is fragile JSON/YAML handling, cross-platform bash inconsistency, and single-binary distribution |

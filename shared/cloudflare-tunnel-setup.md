@@ -1,5 +1,7 @@
 # Cloudflare Tunnel setup (public HTTPS for WhatsApp / Microsoft Teams)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 Telegram polls Telegram's servers for new messages — nothing on this VPS
 needs to be reachable from the internet. WhatsApp Business Cloud API and
 Microsoft Teams work the other way around: Meta/Microsoft call **your**

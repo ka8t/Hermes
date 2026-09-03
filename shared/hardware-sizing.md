@@ -1,5 +1,7 @@
 # Hardware sizing: check what you actually have
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 This deployment's documented performance numbers (prefill time, tokens/
 second — see `shared/model-notes.md`, `shared/telegram-setup.md`) were
 measured on specific hardware. They don't automatically apply to yours.

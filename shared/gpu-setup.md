@@ -1,5 +1,7 @@
 # GPU support for the Linux VPS path (issue #13)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 **Status: implemented, not live-verified.** Written and code-reviewed
 without any GPU-equipped machine available to test against — this repo's
 own reference VPS and every box used in this session's live testing are

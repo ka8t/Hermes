@@ -1,5 +1,7 @@
 # Managing models (add / switch / remove)
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
 Both configurations put [llama-swap](https://github.com/mostlygeek/llama-swap)
 in front of llama.cpp instead of running `llama-server` directly. llama-swap
 reads one YAML file listing every model you want available, and loads the

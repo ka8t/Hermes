@@ -1,5 +1,26 @@
 # WhatsApp Business Cloud API setup
 
+See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
+
+## Table of contents
+
+- [1. Create a Meta Business account and app](#1-create-a-meta-business-account-and-app)
+- [2. Collect the required values](#2-collect-the-required-values)
+- [3. Get a permanent access token](#3-get-a-permanent-access-token-skip-only-for-a-throwaway-test)
+- [4. Expose the webhook publicly](#4-expose-the-webhook-publicly)
+- [5. Generate a verify token and fill in `.env`](#5-generate-a-verify-token-and-fill-in-env)
+- [6. Configure the webhook on Meta's side](#6-configure-the-webhook-on-metas-side)
+- [7. Recipient whitelist (Meta's side)](#7-recipient-whitelist-metas-side--dev-mode)
+- [8. The Hermes-side allowlist](#8-the-hermes-side-allowlist-separate-from-metas)
+- [Full configuration reference](#full-configuration-reference)
+- [What actually works over this channel](#what-actually-works-over-this-channel)
+- [Known limitations](#known-limitations-metas-rules-not-hermess)
+- [Troubleshooting](#troubleshooting)
+- [Security notes](#security-notes)
+- [Comparison to the Baileys bridge](#comparison-to-the-baileys-bridge-why-this-repo-picked-cloud-api)
+- [Status](#status)
+- [Sources](#sources)
+
 Meta's official WhatsApp integration — no Node.js bridge, no QR code, no
 account-ban risk (unlike the alternative Baileys bridge, which this repo
 deliberately doesn't use — see issue
