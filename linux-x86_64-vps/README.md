@@ -85,6 +85,10 @@ docker compose exec hermes hermes gateway setup
 ## Verification
 
 ```bash
+# Mandatory: real inference throughput, not just "is it up" — hardware
+# specs alone don't predict real speed (see ../shared/hardware-sizing.md).
+./scripts/verify-inference.sh
+
 # llama-swap health and model list
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/v1/models       # should list "llama-3.1-8b-instruct"

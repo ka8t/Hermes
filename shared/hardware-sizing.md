@@ -6,9 +6,59 @@ measured on specific hardware. They don't automatically apply to yours.
 This page is about checking what you're actually running on before
 trusting them.
 
-**Status: partial.** CPU thread sizing is auto-detected on one path today
-(below). GPU detection and native-path/macOS thread verification are not
+**Status: partial.** CPU thread sizing is auto-detected on one path today,
+and a mandatory real-inference benchmark now runs after first boot (both
+below). GPU detection and native-path/macOS thread verification are not
 yet built — see "What's not covered yet."
+
+## Mandatory: verify real inference throughput (issue #27)
+
+Detecting hardware specs (vCPU count, GPU presence) is not enough — this
+repo's own incident below shows two boxes with identical specs can have
+very different real throughput. After `docker compose up -d` (or starting
+the native services) and confirming llama-swap is healthy, run:
+
+```bash
+# Linux VPS
+./scripts/verify-inference.sh
+
+# macOS
+./scripts/verify-inference.sh
+```
+
+This sends two real requests to the running llama-swap/llama-server —
+a padded ~2500-token prompt (measures prefill throughput) and a short
+generation request (measures tokens/second) — reads this deployment's
+actual fixed prompt budget via `hermes prompt-size --json` (system
+prompt + skills index + memory + user profile + tool schemas, not a
+guess), and estimates real first-reply latency:
+
+```
+estimated_prefill_seconds = (real_prompt_chars / 4.3) / measured_prefill_tok_per_s
+```
+
+**The 4.3 chars/token figure is empirically calibrated**, not assumed:
+measured by tokenizing this repo's own `clarify-agent-intent/SKILL.md`
+content (4495 chars → 1041 tokens) through the deployed model's own
+tokenizer, via llama-swap's `/upstream/<model>/tokenize` route — real
+repo content, not a generic ratio pulled from nowhere. It's an
+approximation (JSON tool schemas tokenize somewhat differently from
+prose), good enough for a pass/warn/fail gate, not exact.
+
+**Thresholds** (informed by this repo's own testing, not arbitrary):
+
+| Estimated first-reply latency | Verdict | Meaning |
+|---|---|---|
+| < 300s (5 min) | PASS | Comfortable |
+| 300-1200s (5-20 min) | WARN | Usable, but slow — consider `disabled_toolsets`, a smaller model, or investigating contention (see the incident below) |
+| > 1200s (20 min) | FAIL | Investigate before deploying to real users — check threads, contention, and model in that order (see below) |
+
+Confirmed live on this repo's own VPS, 2026-09-03 (8 vCPUs, `LLAMA_THREADS=8`,
+no contention): 22.3 tok/s prefill, 7.4 tok/s generation, ~10,942-token real
+prompt budget, ~491s estimated first-reply latency — **WARN**, not PASS,
+even on a correctly-configured, uncontended box. This is the actual,
+current, honest number for the default reference VPS spec — not a
+best-case claim.
 
 ## Check what you actually have
 
@@ -65,7 +115,6 @@ in that order, don't assume the first hypothesis is the right one.
 | CPU/thread auto-detection on the native (no-Docker) VPS path | #12 |
 | GPU detection and support for the Linux VPS path (this repo assumes CPU-only unconditionally today) | #13 |
 | Verifying whether CPU thread count matters at all on macOS given full Metal offload (currently assumed, not measured) | #14 |
-| A mandatory real-throughput benchmark during provisioning (this page covers manual spec-checking; an automated pass/fail gate is separate) | #27 |
 
 ## Sources
 
