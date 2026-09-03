@@ -33,8 +33,15 @@ model:
 # 900s; a CPU-only VPS can need longer than that just for prompt processing
 # before the first token. See ../../shared/telegram-setup.md, "Why the
 # first reply can take a very long time".
+#
+# disabled_toolsets trims unused tool schemas to shrink that prefill —
+# remove an entry if you actually need that toolset.
 agent:
   local_stream_stale_timeout: 3600
+  disabled_toolsets:
+    - browser-use
+    - tts
+    - vision
 
 # Every dangerous action requires an explicit human answer — no silent
 # auto-approval. See ../../shared/enterprise-safety.md.

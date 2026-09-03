@@ -21,8 +21,17 @@ model:
 # ../../shared/telegram-setup.md. Without this override, Hermes drops the
 # stream at 900s with zero bytes received and retries, 3 times, then gives
 # up (visible as "Stream drop on attempt N/3" in the logs).
+#
+# disabled_toolsets trims tool schemas this bot never uses (measured with
+# `hermes prompt-size` — see ../../shared/telegram-setup.md) to shrink the
+# per-message prefill on CPU-only hardware. Remove an entry if you actually
+# need that toolset (e.g. `vision` for image messages).
 agent:
   local_stream_stale_timeout: 3600
+  disabled_toolsets:
+    - browser-use
+    - tts
+    - vision
 
 # Every dangerous action requires an explicit human answer — no silent
 # auto-approval, on any deployment size. See ../../shared/enterprise-safety.md
