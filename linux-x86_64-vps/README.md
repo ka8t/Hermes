@@ -136,12 +136,15 @@ already relies on elsewhere:
 
 ```bash
 # llama-swap + llama-server, natively (mirrors macos-arm64/'s native path)
+[ -f .env ] || cp .env.example .env           # if you never ran provision.sh, .env doesn't exist yet
 ./scripts/download-prebuilt-llama-server.sh   # prints a path; paste it into .env as LLAMA_SERVER_BIN
 ./scripts/download-llama-swap.sh              # fetches llama-swap itself
 mkdir -p models data
 # download a model into ./models/ — see ../shared/model-notes.md
 cp config/models.yaml.example.native data/models.yaml
-./scripts/run-llama-swap-native.sh            # keep running, or install as a systemd service:
+./scripts/run-llama-swap-native.sh            # also auto-sizes LLAMA_THREADS to your real core count
+                                               # (issue #12) if .env was just created; keep running, or
+                                               # install as a systemd service:
 #   sudo cp scripts/llama-swap.service.example /etc/systemd/system/llama-swap.service
 #   # edit the REPLACE_WITH_REPO_PATH occurrences, then:
 #   sudo systemctl daemon-reload && sudo systemctl enable --now llama-swap

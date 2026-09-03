@@ -74,10 +74,15 @@ nvidia-smi         # GPU presence (if applicable) — "command not found"
 
 ## What's auto-detected today
 
-`linux-x86_64-vps/provision.sh` (Docker path) runs `nproc` on first `.env`
-creation and sets `LLAMA_THREADS` to `nproc - 1` (leaving one core for the
-OS/Docker/Hermes overhead), overriding `.env.example`'s conservative
-default of `2` — see the script's own comments for the exact logic.
+`linux-x86_64-vps/provision.sh` (Docker path) and
+`linux-x86_64-vps/scripts/run-llama-swap-native.sh` (native path, issue
+#12) both run `nproc` on first `.env` creation and set `LLAMA_THREADS` to
+`nproc - 1` (leaving one core for the OS/Docker/Hermes overhead),
+overriding `.env.example`'s conservative default of `2` — see either
+script's own comments for the exact logic. The native path's fix is
+code-reviewed and lint-passed but not live-tested against a real
+from-scratch native VPS in this session (the reference VPS runs the
+Docker path).
 
 ## The incident this doc exists because of
 
@@ -112,7 +117,6 @@ in that order, don't assume the first hypothesis is the right one.
 
 | Gap | Tracking issue |
 |---|---|
-| CPU/thread auto-detection on the native (no-Docker) VPS path | #12 |
 | GPU detection and support for the Linux VPS path (this repo assumes CPU-only unconditionally today) | #13 |
 | Verifying whether CPU thread count matters at all on macOS given full Metal offload (currently assumed, not measured) | #14 |
 

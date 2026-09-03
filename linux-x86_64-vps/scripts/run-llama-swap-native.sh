@@ -5,7 +5,22 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-set -a; [ -f .env ] && source .env; set +a
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo "==> .env created from .env.example — edit it (Telegram token, etc.) if you haven't already."
+
+  # Same nproc-based sizing as provision.sh's Docker path (issue #12) — a
+  # from-scratch native setup that never ran provision.sh would otherwise
+  # silently keep .env.example's conservative LLAMA_THREADS=2 default.
+  DETECTED_CORES="$(nproc)"
+  if [ "${DETECTED_CORES}" -gt 2 ]; then
+    LLAMA_THREADS_DETECTED="$((DETECTED_CORES - 1))"
+    sed -i "s/^LLAMA_THREADS=.*/LLAMA_THREADS=${LLAMA_THREADS_DETECTED}/" .env
+    echo "==> Detected ${DETECTED_CORES} vCPUs — set LLAMA_THREADS=${LLAMA_THREADS_DETECTED} in .env"
+  fi
+fi
+
+set -a; source .env; set +a
 LLAMA_PORT="${LLAMA_PORT:-8080}"
 export MODELS_DIR="$(pwd)/models"
 
