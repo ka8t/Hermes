@@ -18,6 +18,10 @@ macos-arm64/models/*
 macos-arm64/vendor/
 linux-x86_64-vps/vendor/
 
+# BFCL evaluation venv + generated workspace (results, tokenizer files, .env) — issue #29
+eval/.venv/
+eval/bfcl-workspace/
+
 # macOS
 .DS_Store
 macos-arm64/llama-swap.log
