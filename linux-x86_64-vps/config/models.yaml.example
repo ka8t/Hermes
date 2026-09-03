@@ -13,8 +13,8 @@
 healthCheckTimeout: 120
 
 models:
-  "hermes-3-llama-3.1-8b":
-    name: "Hermes 3 Llama 3.1 8B (default)"
+  "llama-3.1-8b-instruct":
+    name: "Llama 3.1 8B Instruct (default)"
     cmd: |
       /app/llama-server --port ${PORT}
       --model /models/${env.MODEL_FILE}

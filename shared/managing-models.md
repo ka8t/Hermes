@@ -25,16 +25,16 @@ effect immediately** — no restart needed.
 
    ```yaml
    models:
-     "qwen2.5-coder-7b":
-       name: "Qwen2.5 Coder 7B (default)"
+     "llama-3.1-8b-instruct":
+       name: "Llama 3.1 8B Instruct (default)"
        cmd: ... # unchanged
        ttl: 600
 
-     "qwen2.5-coder-32b":
-       name: "Qwen2.5 Coder 32B (bigger, slower)"
+     "llama-3.1-70b-instruct":
+       name: "Llama 3.1 70B Instruct (bigger, slower)"
        cmd: |
          ${env.LLAMA_SERVER_BIN} --port ${PORT}
-         --model ./models/qwen2.5-coder-32b-instruct-q4_k_m.gguf
+         --model ./models/Meta-Llama-3.1-70B-Instruct-Q4_K_M.gguf
          --ctx-size ${env.LLAMA_CTX_SIZE}
          --jinja
        ttl: 600
@@ -42,8 +42,12 @@ effect immediately** — no restart needed.
 
    (on the VPS, `cmd` starts with `/app/llama-server` instead of
    `${env.LLAMA_SERVER_BIN}`, and add `--threads ${env.LLAMA_THREADS}` — copy
-   the shape of the existing `qwen2.5-coder-7b` entry in that file rather
-   than the macOS one above).
+   the shape of the existing `llama-3.1-8b-instruct` entry in that file
+   rather than the macOS one above). **Before adopting any model outside
+   this repo's tested default, run the raw tool-calling `curl` test in
+   [`model-notes.md`](model-notes.md)** — this repo shipped a model that
+   looked fine and had broken tool-calling in llama.cpp, found only by that
+   test.
 
 3. That's it. Ask Hermes to switch: on Telegram/desktop, `/model` (or
    whichever UI's model selector) now lists both IDs; the one you didn't pick
@@ -71,8 +75,8 @@ llama-swap unloads it on the next request for anything else.
 
 Hermes's `model.default` in `data/config.yaml` (or `./data/config.yaml` on
 the VPS) must match a model ID in `models.yaml` **exactly** — this repo uses
-`qwen2.5-coder-7b` in both files by convention. Change both together; a
-mismatch here is the most common way to end up with Hermes reporting a
+`llama-3.1-8b-instruct` in both files by convention. Change both together;
+a mismatch here is the most common way to end up with Hermes reporting a
 model-not-found error even though `models.yaml` looks correct.
 
 ## Inspecting what's running

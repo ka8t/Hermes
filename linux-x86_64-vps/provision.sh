@@ -38,9 +38,9 @@ if [ ! -f data/models.yaml ]; then
 fi
 
 MODEL_FILE="$(grep -E '^MODEL_FILE=' .env | cut -d= -f2)"
-MODEL_FILE="${MODEL_FILE:-Hermes-3-Llama-3.1-8B.Q4_K_M.gguf}"
+MODEL_FILE="${MODEL_FILE:-Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf}"
 MODEL_REPO="$(grep -E '^MODEL_REPO=' .env | cut -d= -f2)"
-MODEL_REPO="${MODEL_REPO:-NousResearch/Hermes-3-Llama-3.1-8B-GGUF}"
+MODEL_REPO="${MODEL_REPO:-bartowski/Meta-Llama-3.1-8B-Instruct-GGUF}"
 
 if [ ! -f "models/${MODEL_FILE}" ]; then
   echo "==> Downloading model ${MODEL_FILE} (see ../shared/model-notes.md to change models)"

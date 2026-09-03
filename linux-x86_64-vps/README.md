@@ -86,7 +86,7 @@ docker compose exec hermes hermes gateway setup
 ```bash
 # llama-swap health and model list
 curl http://127.0.0.1:8080/health
-curl http://127.0.0.1:8080/v1/models       # should list "qwen2.5-coder-7b"
+curl http://127.0.0.1:8080/v1/models       # should list "llama-3.1-8b-instruct"
 
 # agent status
 docker compose exec hermes hermes doctor
