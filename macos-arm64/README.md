@@ -197,6 +197,69 @@ Verification, troubleshooting, and everything else on this page apply the
 same way — the only difference is `hermes doctor` / `hermes gateway status`
 run directly instead of through `docker compose exec hermes`.
 
+## Scripts reference
+
+Every script under `scripts/` (except `install-hermes-native.sh`) starts
+with `cd "$(dirname "${BASH_SOURCE[0]}")/.."`, so it relocates itself to
+this directory (`macos-arm64/`) regardless of your current working
+directory — run any of them as `./scripts/<name>.sh` from here, or by
+relative/absolute path from anywhere else (a `launchd` job's `ProgramArguments`
+included). `install-hermes-native.sh` has no directory dependency at all —
+it installs to `$HOME` and can run from literally anywhere.
+
+**`scripts/find-or-build-llama-server.sh`** — no parameters (optional env
+vars: `LLAMA_SERVER_BIN` to force a specific binary, `LLAMA_BUILD_FROM_SOURCE=1`
+to skip straight to a from-source build). Prints one binary path on stdout,
+resolved in order: an explicit `LLAMA_SERVER_BIN` override → an existing
+`~/Documents/Code/llama.cpp/build/bin/llama-server` → a Homebrew install →
+the official prebuilt binary (calls `download-prebuilt-llama-server.sh`
+itself) → clone + build from source into `./vendor/llama.cpp` as a last
+resort (requires Xcode Command Line Tools + CMake). You normally don't call
+this directly — it's what `.env`'s `LLAMA_SERVER_BIN` should end up pointing
+at, resolved once.
+
+**`scripts/download-prebuilt-llama-server.sh`** — no parameters. Downloads
+the latest official `bin-macos-arm64.tar.gz` release asset from
+`ggml-org/llama.cpp` (Metal included) into
+`./vendor/llama.cpp-prebuilt/current/` and prints the resulting
+`llama-server` binary's path on stdout. Skips the download if the archive is
+already present.
+
+**`scripts/download-llama-swap.sh`** — no parameters. Downloads the latest
+stable `darwin_arm64` release of `llama-swap` into `./vendor/llama-swap/`
+and prints the binary's path on stdout. Called automatically by
+`run-llama-swap.sh` — you don't need to run it yourself unless you want the
+binary path in isolation.
+
+**`scripts/download-model.sh`** — no parameters (reads `MODEL_FILE` /
+`MODEL_REPO` from `.env`, falling back to
+`Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` /
+`bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`). Downloads into `./models/` if
+not already present; a no-op otherwise.
+
+**`scripts/run-llama-swap.sh`** — no parameters (reads `LLAMA_PORT` and
+`LLAMA_SERVER_BIN` from `.env`). Requires `data/models.yaml` (copy from
+`config/models.yaml.example`) and `LLAMA_SERVER_BIN` set to an executable.
+Keeps running in the foreground, bound to `127.0.0.1` — install as a
+`launchd` service with `scripts/com.hermes.llama-swap.plist.example` to run
+it unattended.
+
+**`scripts/install-hermes-native.sh`** — native-Hermes path only. No
+parameters. Idempotent (does nothing if `hermes` is already on `PATH`);
+otherwise runs the official installer.
+
+**`scripts/setup-hermes-native.sh`** — native-Hermes path only. No
+parameters (optional env var: `HERMES_HOME`, default `~/.hermes`). Requires
+`hermes` on `PATH` (run `install-hermes-native.sh` first). Never overwrites
+an existing `config.yaml` or `.env` under `HERMES_HOME` — seeds them only if
+missing — and always re-syncs `skills/ka8t-hermes/agent-creation/` from this
+repo.
+
+**Not available on macOS**: `build-agent-template.sh` and
+`provision-user.sh` (multi-user profile isolation) currently only exist
+under [`linux-x86_64-vps/scripts/`](../linux-x86_64-vps/scripts/) — see
+[`../shared/multi-user-agents.md`](../shared/multi-user-agents.md).
+
 ## Troubleshooting
 
 | Symptom | What to check |

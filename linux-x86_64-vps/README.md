@@ -165,6 +165,82 @@ started with `-watch-config`, so both llama-swap and Hermes pick up the
 change without a restart. See
 [`../shared/managing-models.md`](../shared/managing-models.md).
 
+## Scripts reference
+
+Every script under `scripts/` starts with `cd "$(dirname "${BASH_SOURCE[0]}")/.."`,
+so it relocates itself to this directory (`linux-x86_64-vps/`) regardless of
+your current working directory — run any of them as `./scripts/<name>.sh`
+from here, or by relative/absolute path from anywhere else (a cron job, a
+systemd unit's `ExecStart`, a CI step). The one exception is
+`install-hermes-native.sh`, which has no directory dependency at all — it
+installs to `$HOME` and can run from literally anywhere.
+
+**`provision.sh`** (repo root of this directory, not under `scripts/`) — run
+**once, as root**, on a fresh VPS. No parameters. Installs Docker Engine +
+the Compose plugin if missing, creates `data/`/`models/`, seeds
+`.env`/`data/config.yaml`/`data/models.yaml` from their `.example` files
+(only if each doesn't already exist), then downloads the default model —
+reading `MODEL_FILE`/`MODEL_REPO` from `.env` if set, otherwise falling back
+to `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` /
+`bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`. Safe to re-run — every step is
+guarded by an existence check, so it never overwrites something you've
+already configured.
+
+**`scripts/build-agent-template.sh`** — Docker path only. No parameters
+(optional env var: `AGENT_TEMPLATE_PROFILE`, default `agent-template`, to
+name the template profile differently). Requires the `hermes` container
+already running (`docker compose up -d`). Creates the profile inside the
+container the first time, then **always** overwrites its `config.yaml` and
+`skills/ka8t-hermes/agent-creation/` from this repo's own
+`config/config.yaml.example` and `../skills/agent-creation/` — re-run it any
+time those files change, to keep the template in sync. See
+[`../shared/multi-user-agents.md`](../shared/multi-user-agents.md).
+
+**`scripts/provision-user.sh <platform> <chat_id> <profile-slug>`** — Docker
+path only. Three required positional arguments, e.g.
+`./scripts/provision-user.sh telegram 987654321 alice` (in a Telegram DM,
+`chat_id` equals the sender's numeric `user_id` — see
+[`../shared/telegram-setup.md`](../shared/telegram-setup.md)). Requires the
+template profile from `build-agent-template.sh` to exist already. Clones a
+new profile for that user, adds a `gateway.profile_routes` entry routing
+their `platform`+`chat_id` to it, and restarts the gateway — only when
+something actually changed (idempotent: a second call with the same
+arguments is a no-op; a `chat_id` already routed to a *different* profile is
+refused, not overwritten, and no profile is created in that case). Does
+**not** decide who is allowed to talk to the bot — that's
+`TELEGRAM_ALLOWED_USERS` / `hermes pairing approve`, a human decision made
+before this script ever runs.
+
+**`scripts/install-hermes-native.sh`** — native path only. No parameters.
+Idempotent (does nothing if `hermes` is already on `PATH`); otherwise runs
+the official installer.
+
+**`scripts/setup-hermes-native.sh`** — native path only. No parameters
+(optional env var: `HERMES_HOME`, default `~/.hermes`). Requires `hermes` on
+`PATH` (run `install-hermes-native.sh` first). Never overwrites an existing
+`config.yaml` or `.env` under `HERMES_HOME` — seeds them only if missing —
+and always re-syncs `skills/ka8t-hermes/agent-creation/` from this repo.
+
+**`scripts/download-prebuilt-llama-server.sh`** — native path only. No
+parameters. Downloads the latest official `bin-ubuntu-x64.tar.gz` release
+asset from `ggml-org/llama.cpp` into `./vendor/llama.cpp-prebuilt/current/`
+and prints the resulting `llama-server` binary's path on stdout — paste that
+path into `.env` as `LLAMA_SERVER_BIN`. Skips the download if the archive is
+already present.
+
+**`scripts/download-llama-swap.sh`** — native path only. No parameters.
+Downloads the latest stable `linux_amd64` release of `llama-swap` into
+`./vendor/llama-swap/` and prints the binary's path on stdout. Called
+automatically by `run-llama-swap-native.sh` — you don't need to run it
+yourself unless you want the binary path in isolation.
+
+**`scripts/run-llama-swap-native.sh`** — native path only. No parameters
+(reads `LLAMA_PORT`, `LLAMA_SERVER_BIN`, `MODEL_FILE`, `LLAMA_CTX_SIZE`,
+`LLAMA_THREADS` from `.env`). Requires `data/models.yaml` (copy from
+`config/models.yaml.example.native`) and `LLAMA_SERVER_BIN` set to an
+executable. Keeps running in the foreground — install as a systemd service
+with `scripts/llama-swap.service.example` to run it unattended.
+
 ## Troubleshooting
 
 | Symptom | What to check |

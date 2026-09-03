@@ -131,6 +131,7 @@ Hermes/
 - [`shared/managing-models.md`](shared/managing-models.md) — add / switch / remove models via llama-swap
 - [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md) — official binaries used, per platform
 - [`shared/enterprise-safety.md`](shared/enterprise-safety.md) — the approvals default, and what it doesn't cover
+- [`shared/multi-user-agents.md`](shared/multi-user-agents.md) — one Hermes profile per user, onboarding, current platform coverage
 
 ## Security
 
