@@ -106,6 +106,41 @@ llama.cpp's cached prompt prefix — observed `ttfb=1.84s` on a retry, versus
 alone, most occurrences resolve within a minute or two on retry; there's
 usually no need to interrupt and start over.
 
+## Known limitation: malformed nested tool-call arguments beyond `clarify`
+
+Observed live, 2026-09-03: reconstructed a full `hermes -z` agentic
+session from `state.db` after a 69-minute run with no output (see
+`shared/telegram-setup.md`'s prefill-time notes for why a single session
+can take this long on CPU-only hardware). The transcript showed
+Meta-Llama-3.1-8B-Instruct calling `delegate_task` three times in a row
+with its `tasks` parameter sent as a plain string instead of a JSON
+array (`"tasks must be a JSON array of task objects; received a string
+that could not be parsed as JSON"`) — the same category of bug already
+documented for the `clarify` tool (see
+`skills/agent-creation/clarify-agent-intent/SKILL.md`'s fix), but on a
+**different** tool. This model's difficulty with nested array/object tool
+parameters is not `clarify`-specific; expect it on any tool with a
+similarly-shaped schema, not just the ones already worked around.
+
+**More seriously**: after failing `delegate_task` and briefly succeeding
+with `terminal`, the same session went completely off-task — repeatedly
+calling `skill_view` against the bundled `github` skill (auth, PR
+workflow, API cheatsheet, none of it relevant) and cycling
+add/replace/fail/remove/re-add on an unrelated memory entry, twice, for
+the rest of the 23-tool-call session — never returning to the original
+request ("create an agent that watches a subreddit for AI news"). This
+is goal drift on a real multi-step agentic task, not a hardware or
+prompt-format issue, and it's exactly the failure mode the model/config
+evaluation harness (multi-turn BFCL categories, see the tracking issue
+for that work) is meant to catch systematically instead of finding by
+accident during manual testing.
+
+**Not yet re-tested against a different model** — this finding is
+reason to prioritize that evaluation work before trusting
+Meta-Llama-3.1-8B-Instruct with unattended multi-step tasks (cron jobs,
+`delegate_task`), even though its single-turn tool-calling (the original
+`curl` test above) still checks out.
+
 ## Going further
 
 | Model | When to prefer it |
