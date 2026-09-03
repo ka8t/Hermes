@@ -31,13 +31,57 @@ overriding:
 
 - `cron_mode: deny` — a scheduled job that hits a dangerous command is
   blocked outright (there's no human present to ask).
-- `single_query_mode: deny` — same, for one-shot `hermes -z`/`-q` sessions.
+- `single_query_mode: deny` — same, for **`hermes chat -q`** sessions.
 - `unattended_mode: deny` — same, for webhook/API-triggered sessions.
 
 So in every context where nobody could actually grant consent, Hermes
 already refuses by default; `mode: manual` closes the remaining gap, which
 was interactive/gateway sessions with a human present but `smart` mode
 willing to auto-approve on their behalf.
+
+### `hermes -z`/`--oneshot` is NOT covered by any of this — corrected 2026-09-03
+
+**This section previously stated that `single_query_mode: deny` covers
+`hermes -z` sessions "same" as `hermes chat -q`. That was wrong — verified
+empirically (issue [#38](https://github.com/ka8t/Hermes/issues/38)) and
+confirmed directly against the installed CLI's own `--help` text, not
+assumed:**
+
+```
+-z, --oneshot PROMPT  One-shot mode: send a single prompt and print ONLY the
+                       final response text to stdout. [...] Tools, memory,
+                       rules, and AGENTS.md in the CWD are loaded as normal;
+                       approvals are auto-bypassed. Intended for scripts / pipes.
+```
+
+`-z`/`--oneshot` and `hermes chat -q` are two different commands with
+**opposite** default approval behavior:
+
+| Command | Governed by | Default behavior on a dangerous command |
+|---|---|---|
+| `hermes chat -q` | `single_query_mode` | `deny` — blocked outright, no human to ask |
+| `hermes -z` / `--oneshot` | nothing — hardcoded | **always auto-bypassed**, unconditionally |
+
+This is not a bug and not something `approvals.mode`, `single_query_mode`,
+or this repo's `manual` override can change — `-z` bypasses **every**
+dangerous-command check by design, the same as running with `--yolo`,
+regardless of config. Confirmed live: a `rm -r` on a test path (a pattern
+explicitly listed in the "What Triggers Approval" table above) executed
+immediately through the `terminal` tool in a `hermes -z` session, with no
+approval step anywhere in the recorded tool-call trace (`state.db`,
+session `20260903_114926_821b3a`) — it only failed to actually delete the
+target because that target happened to be owned by a different user, an
+unrelated filesystem permission, not an approval decision.
+
+**Practical consequence**: never use `hermes -z` for anything that could
+touch destructive commands unattended (a cron-like automation, a script
+an admin points at real data) — use `hermes chat -q` instead if
+unattended headless execution needs the `deny` protection. `-z` is only
+appropriate for read-only or already-trusted one-off queries. Nothing in
+this repo's own scripts or skills invokes `-z` in production today
+(verified by search); this note exists so a future admin reaching for
+`-z` for "a quick script" — exactly the use case the CLI's own help text
+invites — doesn't assume it's protected.
 
 ## What this does NOT do
 

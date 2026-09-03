@@ -168,7 +168,10 @@ every dangerous action always asks a human, no auto-approval regardless
 of Hermes's own default `smart` mode. See `shared/enterprise-safety.md`
 for exactly what this does and does not cover (notably: **no
 delegated/group/SSO approval routing exists** — tracked as issue #4,
-explicitly not assumed to work).
+explicitly not assumed to work; and **`hermes -z`/`--oneshot` always
+auto-bypasses every dangerous-command check, unconditionally, by
+design** — confirmed live in issue #38, corrected in
+`shared/enterprise-safety.md` 2026-09-03).
 
 ## 6. Specced, not yet implemented
 
@@ -185,7 +188,7 @@ built until its issue is closed and this section is updated:
 | Global (cross-profile) stats/logs/KPI dashboard | #35 | Per-user stats already covered by #5's per-profile dashboards natively (usage/cost analytics, host stats, cron history already exist in Hermes's own dashboard); the gap is cross-profile aggregation for an admin view — that part is unbuilt |
 | Deployment scripts ported from bash to Rust | #36 | Scope corrected during grilling: this repo's own scripts, not Hermes Agent itself (rejected, same reasoning as distillation in #21) — and explicitly not for speed (scripts are network/subprocess-bound, language-independent); real motivation is fragile JSON/YAML handling, cross-platform bash inconsistency, and single-binary distribution |
 | Agentic goal-drift root cause (PRIORITY) | #37 | Root-caused, not yet fixed: a live 23-tool-call session drifted completely off-task after a malformed-tool-call failure. Verified the skill index, trigger phrasing, and Hermes's own "check skills first" instruction were all correct — this is a model capability/judgment limitation, not fixable by prompt engineering. Durable fix is prioritizing #28-#32's model evaluation (this exact prompt added as a regression case); `agent.run_budget_seconds` is defense-in-depth, not the fix |
-| `single_query_mode` approval-bypass verification | #38 | An unexplained `"yolo_mode": true` found in a `hermes -z` session's config, potentially in tension with `shared/enterprise-safety.md`'s documented `single_query_mode: deny` default — not yet confirmed as a real bypass (no dangerous command was attempted in the session where this was found) |
+| `single_query_mode` approval-bypass verification | #38 | **Resolved.** Confirmed live and against the installed CLI's own `--help` text: `hermes -z`/`--oneshot` always auto-bypasses every dangerous-command check by design ("approvals are auto-bypassed"), unrelated to `single_query_mode` (which only governs `hermes chat -q`). This repo's `shared/enterprise-safety.md` incorrectly conflated the two — corrected. Not an upstream bug; a documentation error in this repo |
 
 ## 7. Repository structure
 
