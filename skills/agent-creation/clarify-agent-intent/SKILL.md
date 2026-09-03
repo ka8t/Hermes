@@ -27,8 +27,15 @@ Rome") — only when a genuinely new, separate profile is being proposed.
 
 1. **Read the initial request for what it already answers.** Don't ask a
    question the user already answered in their first message.
-2. **Ask, in a single message, only the questions still open**, from this
-   list (skip any already answered):
+2. **Ask, in a single plain chat message, only the questions still open**,
+   from this list (skip any already answered). Do **not** use the built-in
+   `clarify` tool for this: on messaging platforms it falls back to asking
+   its `questions` one at a time anyway (defeating the single-message
+   batching this step relies on), and smaller local models have been
+   observed sending its `questions` parameter as something other than a
+   real JSON array — causing the call to fail outright with "questions
+   must be an array of question objects." A plain chat message listing the
+   open questions has neither failure mode.
    - **Purpose/scope**: what should this agent actually do, concretely?
      ("watch my inbox for invoices" is concrete; "help with email" is not —
      push for the concrete version.)
@@ -72,6 +79,10 @@ Extra access: <none | specifics>
 
 - Asking one question per message turns a quick setup into an interrogation
   — batch the open questions into one message.
+- Don't reach for the `clarify` tool to batch these questions — see step 2.
+  Observed failure on this deployment: `Tool clarify returned error:
+  "questions must be an array of question objects."` A plain chat message
+  works every time and matches this skill's own "single message" design.
 - Don't invent answers for missing information and proceed anyway; an
   under-specified agent is the exact failure mode this skill exists to
   prevent.
