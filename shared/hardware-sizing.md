@@ -6,10 +6,12 @@ measured on specific hardware. They don't automatically apply to yours.
 This page is about checking what you're actually running on before
 trusting them.
 
-**Status: partial.** CPU thread sizing is auto-detected on one path today,
-and a mandatory real-inference benchmark now runs after first boot (both
-below). GPU detection and native-path/macOS thread verification are not
-yet built — see "What's not covered yet."
+**Status: complete.** CPU thread sizing is auto-detected on every path,
+GPU support exists for the Linux VPS path (all vendors), macOS thread
+count has been empirically settled, and a mandatory real-inference
+benchmark runs after first boot on both platforms — see "What's covered
+now" below for exactly what's live vs. still awaiting a real-hardware
+report from an operator.
 
 ## Mandatory: verify real inference throughput (issue #27)
 
@@ -113,15 +115,23 @@ causes (under-provisioned thread count, other processes competing for
 the same CPU, or the model itself struggling with the task) — check them
 in that order, don't assume the first hypothesis is the right one.
 
-## What's not covered yet
+## What's covered now
 
-| Gap | Tracking issue |
-|---|---|
-| Verifying whether CPU thread count matters at all on macOS given full Metal offload (currently assumed, not measured) | #14 |
+All of #11's original sub-issues are resolved:
 
-GPU support for the Linux VPS path (#13) is now implemented — see
-[`gpu-setup.md`](gpu-setup.md) — but not live-verified (no GPU-equipped
-machine available while writing it).
+- CPU thread auto-detection, both the Docker and native VPS paths (#12).
+- GPU support for the Linux VPS path, all three vendors (#13) — see
+  [`gpu-setup.md`](gpu-setup.md); implemented but not live-verified, no
+  matching hardware available to test against.
+- macOS CPU thread count confirmed empirically **not to matter** once
+  Metal does full offload (#14) — live-tested on a real M1 Mac, see
+  `shared/model-notes.md`'s "macOS CPU thread count" section for the
+  actual numbers.
+- The mandatory real-throughput benchmark (#27,
+  `scripts/verify-inference.sh`) — live-tested on both a CPU-only VPS
+  and a real M1 Mac.
+
+Nothing is left unimplemented from the original hardware-sizing scope.
 
 ## Sources
 

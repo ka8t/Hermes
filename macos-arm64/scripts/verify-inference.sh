@@ -14,44 +14,45 @@ cd "$REPO_DIR"
 
 LLAMA_URL="${LLAMA_URL:-http://127.0.0.1:8080}"
 
-# Hermes runs either in Docker or natively on this platform (see README's
-# comparison table) — detect which, same check as build-agent-template.sh
-# uses on the VPS side, and call `hermes prompt-size` the matching way.
-if [ -n "$(docker compose ps hermes --status running --quiet 2>/dev/null)" ]; then
-  HERMES_PROMPT_SIZE_CMD=(docker compose exec -T hermes hermes prompt-size --json --platform telegram)
-elif command -v hermes >/dev/null 2>&1; then
-  HERMES_PROMPT_SIZE_CMD=(hermes prompt-size --json --platform telegram)
-else
-  echo "!! Neither a running 'hermes' Docker container nor a native 'hermes' binary found." >&2
-  echo "!! Start Hermes first (see README.md), then re-run this check." >&2
-  exit 1
-fi
-
 echo "==> Checking llama-swap is reachable at ${LLAMA_URL}"
 if ! curl -sf "${LLAMA_URL}/health" >/dev/null; then
   echo "!! ${LLAMA_URL}/health not reachable. Is llama-swap running natively (see README.md)?" >&2
   exit 1
 fi
 
-# Real fixed prompt size for this exact deployment, and (on the Docker
-# path) the only reliable place to read the active model ID from the host:
-# `data/config.yaml` is bind-mounted and written by the container as its
-# own UID (0700), unreadable by the host user running this script even
-# though the file exists — confirmed live on the VPS variant of this
-# script, same container image, same bug class. Don't assume a bind mount
-# is host-readable just because it exists.
-PROMPT_SIZE_JSON="$("${HERMES_PROMPT_SIZE_CMD[@]}" 2>/dev/null || echo '')"
-if [ -z "$PROMPT_SIZE_JSON" ]; then
-  echo "!! 'hermes prompt-size' failed — is Hermes actually running?" >&2
+# The model ID comes from llama-swap itself (/v1/models) — this only
+# requires llama-swap to be up, not Hermes. Bug found live-testing this
+# script on 2026-09-03: it previously required Hermes to be running just
+# to read the model ID out of `hermes prompt-size`'s JSON, which meant the
+# whole throughput benchmark (which needs nothing from Hermes) refused to
+# run without Hermes installed/started first — an unnecessary coupling.
+MODEL="$(curl -sf "${LLAMA_URL}/v1/models" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])')"
+if [ -z "$MODEL" ]; then
+  echo "!! Could not read a model ID from ${LLAMA_URL}/v1/models." >&2
   exit 1
 fi
 
+# Real fixed prompt size for this exact deployment — used only for the
+# latency ESTIMATE in step 3 below, not for the throughput measurement
+# itself. Hermes runs either in Docker or natively on this platform (see
+# README's comparison table); if neither is up, this degrades gracefully
+# to "unknown" (see the Python heredoc) rather than refusing to run the
+# actual benchmark.
+if [ -n "$(docker compose ps hermes --status running --quiet 2>/dev/null)" ]; then
+  PROMPT_SIZE_JSON="$(docker compose exec -T hermes hermes prompt-size --json --platform telegram 2>/dev/null || echo '')"
+elif command -v hermes >/dev/null 2>&1; then
+  PROMPT_SIZE_JSON="$(hermes prompt-size --json --platform telegram 2>/dev/null || echo '')"
+else
+  echo "==> Hermes not running (Docker or native) — skipping the real-prompt-size estimate,"
+  echo "    throughput numbers below are still real and valid."
+  PROMPT_SIZE_JSON=""
+fi
+
 echo "==> Running inference benchmark (padded-prompt prefill + generation)"
-python3 - "$LLAMA_URL" "$PROMPT_SIZE_JSON" <<'PY'
+python3 - "$LLAMA_URL" "$MODEL" "$PROMPT_SIZE_JSON" <<'PY'
 import json, sys, time, urllib.request
 
-llama_url, prompt_size_raw = sys.argv[1], sys.argv[2]
-model = json.loads(prompt_size_raw)["model"]
+llama_url, model, prompt_size_raw = sys.argv[1], sys.argv[2], sys.argv[3]
 
 def chat(payload, timeout):
     req = urllib.request.Request(

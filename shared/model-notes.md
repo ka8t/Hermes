@@ -31,6 +31,35 @@ response, verified directly (not assumed) against this exact build.
 > `MODEL_FILE` in `.env` accordingly — the scripts don't invent any other
 > filename than this one.
 
+## macOS CPU thread count: confirmed not to matter with full Metal offload (#14)
+
+**Verified live, 2026-09-03, on a MacBook Pro M1 (8 cores: 6P+2E)**: with
+`-ngl 99` (full GPU offload, this repo's default on macOS — see
+`macos-arm64/config/models.yaml.example`), explicit `--threads` makes no
+measurable difference to either prefill or generation throughput.
+
+Three back-to-back runs of `scripts/verify-inference.sh`, same model, same
+padded ~2500-token prompt, only `--threads` changed between runs:
+
+| `--threads` | Prompt processing | Generation |
+|---|---|---|
+| (unset — llama.cpp's own default) | 177.4 tok/s | 23.2 tok/s |
+| `2` | 177.6 tok/s | 23.1 tok/s |
+| `6` (all performance cores) | 177.5 tok/s | 23.0 tok/s |
+
+Effectively identical across all three — within measurement noise. (An
+initial cold-start run before these three read 136.8 tok/s prefill; that
+was Metal shader compilation on first load, not a threading effect —
+reproduced 177.x tok/s on every run afterward, `--threads` set or not.)
+
+**Conclusion**: don't bother setting `--threads` on the macOS path — the
+current default (`macos-arm64/config/models.yaml.example` omits it
+entirely) is correct as-is. This is the opposite of the CPU-only VPS path
+(see `shared/hardware-sizing.md`), where thread count is the dominant
+factor — the difference is `-ngl 99` offloading every layer to the GPU
+here, leaving the CPU with negligible work regardless of how many threads
+it's allowed to use.
+
 ## Two models this repo tried and rejected, and why (read before changing the default)
 
 This repo's default model changed three times during initial testing. Both

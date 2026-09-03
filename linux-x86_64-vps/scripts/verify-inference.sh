@@ -20,25 +20,38 @@ if ! curl -sf "${LLAMA_URL}/health" >/dev/null; then
   exit 1
 fi
 
-# Real fixed prompt size for this exact deployment (system prompt + skills
-# index + memory + user profile + tool schemas) — not a guess, Hermes's own
-# accounting — and, incidentally, the only reliable place to read the
-# active model ID from the host: `data/config.yaml` is bind-mounted and
-# written by the container as its own UID (0700), unreadable by the host
-# user running this script even though the file exists (confirmed live —
-# don't assume host-readable just because it's a bind mount).
-PROMPT_SIZE_JSON="$(docker compose exec -T hermes hermes prompt-size --json --platform telegram 2>/dev/null || echo '')"
-if [ -z "$PROMPT_SIZE_JSON" ]; then
-  echo "!! 'docker compose exec hermes hermes prompt-size' failed — is the hermes container up?" >&2
+# The model ID comes from llama-swap itself (/v1/models) — this only
+# requires llama-swap to be up, not the hermes container. Bug found
+# live-testing the macOS variant of this script on 2026-09-03: requiring
+# Hermes just to read the model ID coupled the whole throughput benchmark
+# (which needs nothing from Hermes) to Hermes being up first — unnecessary.
+MODEL="$(curl -sf "${LLAMA_URL}/v1/models" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])')"
+if [ -z "$MODEL" ]; then
+  echo "!! Could not read a model ID from ${LLAMA_URL}/v1/models." >&2
   exit 1
 fi
 
+# Real fixed prompt size for this exact deployment (system prompt + skills
+# index + memory + user profile + tool schemas) — not a guess, Hermes's own
+# accounting — used only for the latency ESTIMATE in step 3 below, not for
+# the throughput measurement itself. `data/config.yaml` is bind-mounted and
+# written by the container as its own UID (0700), unreadable by the host
+# user running this script even though the file exists (confirmed live —
+# don't assume host-readable just because it's a bind mount), which is why
+# this goes through `hermes prompt-size` and degrades gracefully to
+# "unknown" if the container isn't up, rather than reading the file
+# directly or refusing to run the benchmark at all.
+PROMPT_SIZE_JSON="$(docker compose exec -T hermes hermes prompt-size --json --platform telegram 2>/dev/null || echo '')"
+if [ -z "$PROMPT_SIZE_JSON" ]; then
+  echo "==> 'hermes prompt-size' unavailable (is the hermes container up?) — skipping the"
+  echo "    real-prompt-size estimate, throughput numbers below are still real and valid."
+fi
+
 echo "==> Running inference benchmark (padded-prompt prefill + generation) — this can take a while on CPU-only hardware, that's the point"
-python3 - "$LLAMA_URL" "$PROMPT_SIZE_JSON" <<'PY'
+python3 - "$LLAMA_URL" "$MODEL" "$PROMPT_SIZE_JSON" <<'PY'
 import json, sys, time, urllib.request
 
-llama_url, prompt_size_raw = sys.argv[1], sys.argv[2]
-model = json.loads(prompt_size_raw)["model"]
+llama_url, model, prompt_size_raw = sys.argv[1], sys.argv[2], sys.argv[3]
 
 def chat(payload, timeout):
     req = urllib.request.Request(
