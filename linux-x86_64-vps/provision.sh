@@ -25,6 +25,18 @@ mkdir -p data models
 if [ ! -f .env ]; then
   cp .env.example .env
   echo "!! .env created from .env.example — edit it (Telegram token, etc.) before continuing."
+
+  # .env.example's LLAMA_THREADS=2 is a conservative default sized for the
+  # smallest documented reference VPS (2 vCPU) — auto-detect this box's
+  # real core count instead of silently leaving it under-provisioned, since
+  # llama.cpp's prefill/generation throughput scales close to linearly with
+  # thread count. Leaves one core for the OS/Docker/Hermes overhead.
+  DETECTED_CORES="$(nproc)"
+  if [ "${DETECTED_CORES}" -gt 2 ]; then
+    LLAMA_THREADS="$((DETECTED_CORES - 1))"
+    sed -i "s/^LLAMA_THREADS=.*/LLAMA_THREADS=${LLAMA_THREADS}/" .env
+    echo "==> Detected ${DETECTED_CORES} vCPUs — set LLAMA_THREADS=${LLAMA_THREADS} in .env"
+  fi
 fi
 
 if [ ! -f data/config.yaml ]; then
