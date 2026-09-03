@@ -14,6 +14,21 @@ model:
   base_url: http://host.docker.internal:8080/v1
   context_length: 65536
 
+# Docker Desktop for Mac shares ./data into the container over virtiofs,
+# which SQLite's WAL (write-ahead log) mode is not reliably crash-safe
+# on — confirmed live, 2026-09-03: the gateway refused to start with
+# "a live process holds a deleted state.db-wal or state.db-shm inode...
+# Refusing to open or write so a second WAL cannot be minted", on a
+# freshly emptied ./data, not just a leftover-file issue. This is the
+# base Hermes image's own documented mitigation for exactly this
+# bind-mount class (its own cli-config.yaml.example lists "Linux
+# containers bind-mounted through macOS virtiofs" explicitly).
+# Hermes will not live-downgrade a database already opened in WAL mode —
+# this must be set before the very first `docker compose up` (or with
+# ./data emptied first) to take effect.
+database:
+  journal_mode: delete
+
 # run_budget_seconds is defense-in-depth against agentic goal-drift (a real
 # incident, see ../../shared/model-notes.md and issue #37): at 80% elapsed
 # Hermes injects a one-time "wrap up" notice telling the model to stop new

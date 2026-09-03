@@ -13,6 +13,7 @@ macos-arm64/models/*
 # Persistent Hermes state (memory, sessions, skills, real config.yaml)
 **/.hermes/
 **/data/
+**/data.bak.*/
 
 # Downloaded/built llama.cpp binaries (prebuilt archives or from-source builds)
 macos-arm64/vendor/

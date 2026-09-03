@@ -296,6 +296,7 @@ under [`linux-x86_64-vps/scripts/`](../linux-x86_64-vps/scripts/) — see
 | Hermes says a model isn't found | The `model.default` in `data/config.yaml` doesn't match a model ID in `data/models.yaml` exactly — see [`../shared/managing-models.md`](../shared/managing-models.md) |
 | `docker: no matching manifest for linux/arm64` | Stale cached `hermes-agent` image — `docker compose pull` |
 | Dashboard won't start / login loop | `HERMES_DASHBOARD_BASIC_AUTH_USERNAME`/`_PASSWORD` missing or empty in `.env` |
+| Gateway crashes on startup: `FATAL: a live process holds a deleted state.db-wal or state.db-shm inode...` | Docker Desktop's virtiofs bind mount and SQLite's WAL mode don't reliably mix — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md)'s troubleshooting table for the fix (`database.journal_mode: delete`, already the default in `config/config.yaml.example`) |
 
 ## Sources
 

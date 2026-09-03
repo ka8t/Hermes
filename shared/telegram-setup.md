@@ -199,6 +199,7 @@ deployment like this one.
 | `hermes gateway status` still shows an old error after fixing it | Status can be stale for several minutes — check `docker compose logs --since 1m hermes \| grep -i telegram` instead |
 | Bot looks unresponsive for a long time on a VPS | Probably not stuck — see "Why the first reply can take a very long time" above; confirm with `ps aux \| grep llama-server` on the model-serving side |
 | "No home channel set for Telegram" | Expected on first contact — reply with `/set home` |
+| Gateway won't start at all: `FATAL: a live process holds a deleted state.db-wal or state.db-shm inode...` (macOS Docker only) | SQLite's WAL mode isn't reliably crash-safe over Docker Desktop's virtiofs bind mount — confirmed live, 2026-09-03, on a completely fresh `./data` (not a leftover-file issue). Set `database.journal_mode: delete` in `data/config.yaml` **before** the first `docker compose up` (already the default in `macos-arm64/config/config.yaml.example`) — Hermes won't live-downgrade a database already opened in WAL mode, so an existing `state.db` must be removed (back it up first, don't just delete) for the setting to take effect. |
 
 Source: official Hermes Agent documentation —
 [hermes-agent.nousresearch.com/docs/user-guide/messaging](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/)
