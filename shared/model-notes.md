@@ -288,30 +288,32 @@ evaluation: a candidate model should be checked not just for whether it
 completes a task, but for whether a *failed* task is ever reported as a
 success.
 
-**Root cause of the local run's `web_search` failure, dug into
-separately (2026-09-03)**: a fourth distinct manifestation of the same
-underlying weakness. The error — "Parameters of tool web_search must
-only have these properties:query" — means the model generated a tool
-call with a property beyond the one `web_search` actually declares
-(`query`), violating that tool's `additionalProperties: false` schema.
-Checked directly against llama.cpp's own source
-(`common/json-schema-to-grammar.cpp`): grammar-constrained decoding is
-*supposed* to make this structurally impossible — the grammar shouldn't
-generate tokens for a property outside the schema in the first place.
-That it happened anyway, caught only by a post-generation HTTP 500
-rather than prevented during generation, points at the same
-already-documented `peg-native`-class parser gap (this model/build
-combination isn't reliably grammar-constrained for tool calls, falling
-back to freer generation + after-the-fact validation). Confirmed the
-exact error string doesn't appear anywhere in llama.cpp's own repository
-(`gh api search/code`, zero hits) — it's a schema-validator's generic
-message, not a llama.cpp-specific one, consistent with a generic
-JSON-schema check catching what grammar constraints should have
-prevented. Net effect: **the same core problem — this model not
-reliably conforming to a tool's declared parameter schema — now
-confirmed across two different violation shapes** (array-as-Python-
-string on three tools; an excess property on a fourth) rather than one
-narrow bug.
+**Root cause of the local run's `web_search` failure — corrected after
+capturing the actual request (2026-09-03, issue #50).** An initial
+hypothesis (that `web_search` declares `additionalProperties: false`
+and the model added an out-of-schema property) turned out to be wrong —
+caught by actually capturing the real request/response with a logging
+relay rather than trusting the assumption. **Hermes's own declared
+schema for `web_search` explicitly allows an optional `limit`
+parameter** (integer, 1-100, default 5) alongside required `query` — no
+`additionalProperties: false` anywhere. The model used `limit` (a real,
+documented, valid parameter) and llama-server rejected it anyway, every
+time, deterministically. **This is a confirmed llama-server bug, not a
+model or Hermes bug**: llama-server's tool-call validation only honors
+`required` properties, silently ignoring legitimately declared optional
+ones. Filed upstream — see issue #50 for the captured evidence and the
+report.
+
+**Mitigation attempted and found ineffective**: a targeted skill
+(`skills/reliability/web-search-query-only`) instructing the model to
+call `web_search` with only `query`, never `limit`, was written and
+tested live (three repeated attempts, Mac/Metal) — the model kept
+including a rejected parameter regardless, matching #37's own
+established finding that this model doesn't reliably follow skill
+instructions even when directly on-point. The skill is kept
+(harmless, might help a more instruction-following model), but isn't
+relied on as an actual fix — the real fix is either llama-server's
+upstream patch (#50) or picking a different model (#28-#32).
 
 **Defense-in-depth, implemented 2026-09-03 (not the fix — model
 verification above is)**: `agent.run_budget_seconds: 3600` is now set in

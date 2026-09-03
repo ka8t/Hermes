@@ -13,12 +13,15 @@
 # (build context must be the repo root, so COPY ../skills below resolves)
 FROM nousresearch/hermes-agent:latest
 
-# --- Bundled skills (see ../skills/agent-creation) ---
+# --- Bundled skills (see ../skills/agent-creation, ../skills/reliability) ---
+# ../skills/reliability holds two skills: verify-before-success (#49) and
+# web-search-query-only (#50, a confirmed llama-server bug workaround).
 # Synced into every deployment's live skills directory automatically by the
 # base image's own boot sequence (docker/stage2-hook.sh's skills_sync.py,
 # confirmed by inspecting nousresearch/hermes-agent:latest) — nothing else
 # needed here for the skills themselves to take effect.
 COPY skills/agent-creation /opt/hermes/skills/ka8t-hermes/agent-creation
+COPY skills/reliability /opt/hermes/skills/ka8t-hermes/reliability
 
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
