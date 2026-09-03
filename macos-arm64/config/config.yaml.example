@@ -14,6 +14,17 @@ model:
   base_url: http://host.docker.internal:8080/v1
   context_length: 65536
 
+# run_budget_seconds is defense-in-depth against agentic goal-drift (a real
+# incident, see ../../shared/model-notes.md and issue #37): at 80% elapsed
+# Hermes injects a one-time "wrap up" notice telling the model to stop new
+# work and deliver a final answer instead of continuing to drift. This is a
+# mitigation, not the fix — the actual fix is model verification, see
+# issues #28-#32. Full Metal offload makes a 1h runaway far less likely here
+# than on the CPU-only VPS path, but the same bound applies regardless of
+# how fast inference is, since the risk is drift, not slowness.
+agent:
+  run_budget_seconds: 3600
+
 # Every dangerous action requires an explicit human answer — no silent
 # auto-approval, on any deployment size. See ../../shared/enterprise-safety.md
 # for exactly what this does and does not cover.

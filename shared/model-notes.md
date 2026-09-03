@@ -170,6 +170,16 @@ Meta-Llama-3.1-8B-Instruct with unattended multi-step tasks (cron jobs,
 a regression case to that evaluation suite (issue #29) rather than left
 as an anecdote.
 
+**Defense-in-depth, implemented 2026-09-03 (not the fix — model
+verification above is)**: `agent.run_budget_seconds: 3600` is now set in
+both platforms' `config.yaml.example`. At 80% elapsed (48 min) Hermes
+injects a one-time wrap-up notice telling the model to stop new work and
+deliver a final answer — bounding a drifting run like this one well
+before it reaches the 69-minute mark actually observed, while sitting
+above this repo's documented worst-case single cold-prefill response
+(~40 min on the CPU-only VPS, see `shared/hardware-sizing.md`) so it
+doesn't fire on an ordinary slow response.
+
 ## Going further
 
 | Model | When to prefer it |

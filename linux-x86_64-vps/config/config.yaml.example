@@ -26,8 +26,19 @@ model:
 # `hermes prompt-size` — see ../../shared/telegram-setup.md) to shrink the
 # per-message prefill on CPU-only hardware. Remove an entry if you actually
 # need that toolset (e.g. `vision` for image messages).
+#
+# run_budget_seconds is defense-in-depth against agentic goal-drift (a real
+# incident, see ../../shared/model-notes.md and issue #37): at 80% elapsed
+# Hermes injects a one-time "wrap up" notice telling the model to stop new
+# work and deliver a final answer instead of continuing to drift. 3600s (1h)
+# sits above this repo's documented worst-case single cold-prefill response
+# (~40 min, see ../../shared/hardware-sizing.md) so it doesn't fire on
+# ordinary slow responses, while still bounding a run well before the 69-min
+# drift observed in #37. This is a mitigation, not the fix — the actual fix
+# is model verification, see issues #28-#32.
 agent:
   local_stream_stale_timeout: 3600
+  run_budget_seconds: 3600
   disabled_toolsets:
     - browser-use
     - tts
