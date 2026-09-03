@@ -301,8 +301,9 @@ documented, valid parameter) and llama-server rejected it anyway, every
 time, deterministically. **This is a confirmed llama-server bug, not a
 model or Hermes bug**: llama-server's tool-call validation only honors
 `required` properties, silently ignoring legitimately declared optional
-ones. Filed upstream — see issue #50 for the captured evidence and the
-report.
+ones. Filed upstream:
+[ggml-org/llama.cpp#28340](https://github.com/ggml-org/llama.cpp/issues/28340)
+— see issue #50 for the captured evidence.
 
 **Mitigation attempted and found ineffective**: a targeted skill
 (`skills/reliability/web-search-query-only`) instructing the model to
