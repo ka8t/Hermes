@@ -79,6 +79,33 @@ llama.cpp, not this repo's configuration.
 **If you're tempted to switch to any Qwen2.5 model for tool-heavy agent
 work on llama.cpp, run the raw `curl` test above first.**
 
+## Known limitation: intermittent "peg-native format" parse failures
+
+Observed live in this repo's own VPS testing, 2026-09-03: `openai.APIError:
+The model produced output that does not match the expected peg-native
+format`, on Meta-Llama-3.1-8B-Instruct, mid-session (not on the first
+message). This is **not** the same bug as the Qwen2.5 issue above, and
+switching models is not the fix — it's a known, still-open family of bugs
+in llama.cpp's own `peg-native` chat-format parser (its newer PEG-grammar
+based tool-call/response parser), reproducible across several unrelated
+model families:
+
+- [ggml-org/llama.cpp#26381](https://github.com/ggml-org/llama.cpp/issues/26381) — the exact error string above, filed as its own bug report
+- [ggml-org/llama.cpp#27279](https://github.com/ggml-org/llama.cpp/issues/27279), [#27733](https://github.com/ggml-org/llama.cpp/issues/27733), [#25986](https://github.com/ggml-org/llama.cpp/issues/25986), [#20260](https://github.com/ggml-org/llama.cpp/issues/20260) — the same parser failing on Qwen3, Gemma4, and DeepSeek-family models under different trigger conditions (long tool-call arguments, trailing think-tags, text before a tool call)
+- Some hardening has landed upstream ([#24329](https://github.com/ggml-org/llama.cpp/pull/24329), merged), but the failure class is not resolved as of this repo's llama.cpp build (`0.3.0-dev`, build 10752, commit `b96806d9`)
+
+There is no llama-server flag that avoids this while keeping structured
+`tool_calls` output — `--skip-chat-parsing` disables the parser entirely,
+but that reproduces the Qwen2.5 symptom above (tool calls back as raw text
+in `content`), trading one bug for another.
+
+**In practice, this is intermittent and cheap to retry.** Hermes retries
+automatically (`attempt N/3`), and a retry within the same session reuses
+llama.cpp's cached prompt prefix — observed `ttfb=1.84s` on a retry, versus
+20-40 minutes for the original cold prefill on this VPS's 2 vCPUs. Left
+alone, most occurrences resolve within a minute or two on retry; there's
+usually no need to interrupt and start over.
+
 ## Going further
 
 | Model | When to prefer it |
