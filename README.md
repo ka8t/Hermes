@@ -137,6 +137,7 @@ Hermes/
 - [`shared/cloudflare-tunnel-setup.md`](shared/cloudflare-tunnel-setup.md) — public HTTPS exposure for WhatsApp/Teams (unverified — see [#16](https://github.com/ka8t/Hermes/issues/16))
 - [`shared/whatsapp-setup.md`](shared/whatsapp-setup.md) — WhatsApp Business Cloud API channel (unverified)
 - [`shared/teams-setup.md`](shared/teams-setup.md) — Microsoft Teams channel (unverified)
+- [`shared/hardware-sizing.md`](shared/hardware-sizing.md) — check your real CPU/RAM/GPU before trusting this repo's documented performance numbers (partial — see [#15](https://github.com/ka8t/Hermes/issues/15))
 
 ## Security
 
