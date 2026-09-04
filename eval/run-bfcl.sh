@@ -23,7 +23,7 @@ LLAMA_SWAP_PORT="${2:-8080}"
 # but pointing at *some* OpenAI-compatible endpoint — llama-swap qualifies
 # (see ../shared/model-evaluation.md for the sourced confirmation).
 MODEL="${BFCL_MODEL:-meta-llama/Llama-3.1-8B-Instruct-FC}"
-CATEGORIES="${BFCL_CATEGORIES:-simple,parallel,multi_turn}"
+CATEGORIES="${BFCL_CATEGORIES:-simple_python,parallel,multi_turn}"
 
 echo "==> Checking ${LLAMA_SWAP_HOST}:${LLAMA_SWAP_PORT} is reachable"
 if ! curl -sf "http://${LLAMA_SWAP_HOST}:${LLAMA_SWAP_PORT}/health" >/dev/null; then

@@ -88,17 +88,30 @@ knowing if you're debugging this yourself:
    unused here since `--skip-server-setup` means vllm never serves
    anything). `eval/Dockerfile` installs `soundfile` and `transformers`
    directly instead.
-2. **Wrong env var names.** BFCL's local-inference handler reads
-   `VLLM_ENDPOINT`/`VLLM_PORT` (confirmed directly in
-   `model_handler/local_inference/base_oss_handler.py`) — not
-   `LOCAL_SERVER_ENDPOINT`/`LOCAL_SERVER_PORT` as an earlier draft of
-   this doc claimed. Worse: BFCL loads its `.env` with
-   `python-dotenv(override=True)`, which silently **overwrites** any
-   shell-exported `VLLM_ENDPOINT`/`VLLM_PORT` with whatever's hard-coded
-   in bfcl-eval's own `.env.example` template
-   (`VLLM_ENDPOINT=localhost`, `VLLM_PORT=1053`) — exporting the env vars
-   has no effect. `eval/entrypoint.sh` (run inside the container) edits
-   the `.env` file directly.
+2. **Env var names keep moving upstream — pin the mechanism, not the
+   names.** At different points this session, `bfcl-eval` has read three
+   different env var sets for pointing at an existing OpenAI-compatible
+   server: an earlier draft of this doc wrongly guessed
+   `LOCAL_SERVER_ENDPOINT`/`LOCAL_SERVER_PORT`; the version installed
+   when this was first live-tested actually read
+   `VLLM_ENDPOINT`/`VLLM_PORT`; the version now installed (`bfcl-eval`
+   2026.3.23) reads `LOCAL_SERVER_ENDPOINT`/`LOCAL_SERVER_PORT` again (the
+   name came back, this time for real — confirmed directly in the
+   installed `base_oss_handler.py`) — **and** now also supports
+   `REMOTE_OPENAI_BASE_URL`, which sets the full base URL directly and
+   takes priority when set. Missing this cost a real, silent hang: with
+   neither set, `spin_up_local_server()`'s readiness loop polls the
+   unset default (`localhost:1053`) forever, sleeping and retrying with
+   no error — confirmed via `py-spy dump` on the stuck process, zero
+   requests ever reaching the proxy. `eval/entrypoint.sh` now sets
+   `REMOTE_OPENAI_BASE_URL` directly to the proxy's own `/v1` — simpler
+   than reconstructing endpoint/port separately, and the most direct
+   match for "point BFCL at a server I already have running." BFCL loads
+   `.env` with `python-dotenv(override=True)`, which silently
+   **overwrites** any shell-exported env var with whatever's hard-coded
+   in its own `.env.example` template — exporting the var has no effect;
+   `eval/entrypoint.sh` edits the `.env` file directly, every run,
+   precisely because this keeps moving.
 3. **The gated tokenizer.** BFCL's local-inference handler loads the
    model's tokenizer via `transformers.AutoTokenizer`, from the model's
    *original* HuggingFace repo — separate from and in addition to
@@ -153,7 +166,14 @@ Test categories, per #29's proposal: at minimum simple function calling,
 parallel calls, and multi-turn — the three categories that matter for
 this repo's actual usage pattern (single tool calls, and the guided
 agent-creation flow's multi-step skill invocations, see
-[`skills/agent-creation/`](../skills/agent-creation/)).
+[`skills/agent-creation/`](../skills/agent-creation/)). **Category name
+changed upstream, 2026-09-03**: `bfcl-eval` 2026.3.23 no longer has a
+bare `simple` category — it split into `simple_python`/`simple_java`/
+`simple_javascript` (confirmed directly against the installed package's
+`bfcl_eval.constants.category_mapping.ALL_CATEGORIES`). `simple_python`
+(400 entries) is this repo's default — same intent as the old `simple`,
+just the language-specific successor name. `run-bfcl.sh`'s default is
+`simple_python,parallel,multi_turn`.
 
 **Distinguishing failure types** (#29's own acceptance criteria): a
 model can fail a BFCL category two different ways that need different

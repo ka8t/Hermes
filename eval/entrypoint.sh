@@ -27,13 +27,22 @@ for _ in $(seq 1 20); do
 done
 
 # BFCL loads its own .env with python-dotenv(override=True), which
-# silently overwrites any exported VLLM_ENDPOINT/VLLM_PORT with whatever
-# bfcl-eval's own .env.example template hard-codes — editing the file
-# directly is the only thing that works. See ../shared/model-evaluation.md.
-sed \
-  -e "s/^VLLM_ENDPOINT=.*/VLLM_ENDPOINT=127.0.0.1/" \
-  -e "s/^VLLM_PORT=.*/VLLM_PORT=8091/" \
-  /workspace/.env > /workspace/.env.tmp
+# silently overwrites any exported env vars with whatever bfcl-eval's own
+# .env.example template hard-codes — editing the file directly is the
+# only thing that works. Confirmed live 2026-09-03 against bfcl-eval
+# 2026.3.23: VLLM_ENDPOINT/VLLM_PORT (this repo's earlier finding, itself
+# already a correction of an even earlier wrong guess) no longer exist at
+# all — base_oss_handler.py now reads LOCAL_SERVER_ENDPOINT/
+# LOCAL_SERVER_PORT, or REMOTE_OPENAI_BASE_URL directly if set. Without
+# either being set correctly, spin_up_local_server()'s readiness loop
+# polls the unset default (localhost:1053) forever — a real, silent hang,
+# not a crash (confirmed via py-spy: stuck sleeping in a `requests.get`
+# retry loop with zero requests ever reaching the proxy). Setting
+# REMOTE_OPENAI_BASE_URL straight to the proxy's own /v1 is simpler than
+# reconstructing LOCAL_SERVER_ENDPOINT/PORT. See
+# ../shared/model-evaluation.md.
+grep -v '^#\?\s*REMOTE_OPENAI_BASE_URL=' /workspace/.env > /workspace/.env.tmp || true
+echo "REMOTE_OPENAI_BASE_URL=http://127.0.0.1:8091/v1" >> /workspace/.env.tmp
 mv /workspace/.env.tmp /workspace/.env
 
 export BFCL_PROJECT_ROOT=/workspace
