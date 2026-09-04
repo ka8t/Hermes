@@ -162,7 +162,7 @@ Hermes/
 │   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
-├── eval/                 # model/hardware evaluation: BFCL + llama-bench (see shared/model-evaluation.md)
+├── eval/                 # model/hardware evaluation: BFCL + llama-bench (see eval/README.md)
 ├── docs/ARCHITECTURE.md  # living system architecture doc, diagrams — kept current on every change
 └── shared/               # platform-independent docs, linked from both guides
 ```

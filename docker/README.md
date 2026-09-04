@@ -20,6 +20,20 @@ approvals. This image is that same base, plus:
   group/SSO approval — that's a real gap, tracked in
   [issue #4](https://github.com/ka8t/Hermes/issues/4), not silently
   assumed to work).
+- **A fix for a real `llama-server` bug** — `web_search`'s schema no
+  longer offers a `limit` parameter, sidestepping llama-server's
+  hardcoded, name-based rejection of any second property on a tool
+  called exactly `web_search` (confirmed via `strings` on the compiled
+  binary and direct A/B testing, not assumed — see
+  [`patch-web-search-schema.py`](patch-web-search-schema.py) below and
+  [`../shared/model-notes.md`](../shared/model-notes.md)'s #50 section).
+- **A mandatory verify-before-success instruction in `SOUL.md`** —
+  always injected into every system prompt (unlike a skill, which the
+  model doesn't reliably choose to consult), telling it to check every
+  referenced tool call's actual result before claiming success. Verified
+  live: 2/2 test runs with this instruction produced an honest failure
+  report instead of a fabricated success narrative — see
+  [`../shared/model-notes.md`](../shared/model-notes.md)'s #48 section.
 
 It does **not** bundle a model or llama-swap/llama-server — those need
 platform-specific handling (Metal on Mac, plain CPU on a generic VPS) that
@@ -58,7 +72,18 @@ docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .
 (build context must be the repo root — the Dockerfile's `COPY` paths are
 relative to it, not to `docker/`)
 
-## What's actually in it (verified, 2026-09-02)
+## Scripts reference
+
+**`patch-web-search-schema.py`** — no parameters, no external
+dependencies (stdlib only). Not run directly — `Dockerfile` `COPY`s it
+into the build context and runs it once, at image-build time, against
+`/opt/hermes/tools/web_tools.py` (removing `web_search`'s `limit`
+property from its schema, see above), then deletes it — it doesn't
+persist in the final image. Exits non-zero with a clear message if the
+expected text block isn't found, rather than silently doing nothing, so
+a future base-image update that changes this file won't fail invisibly.
+
+## What's actually in it (verified, 2026-09-02, extended 2026-09-04)
 
 Built and booted locally against a fresh volume before publishing:
 
@@ -70,6 +95,14 @@ Built and booted locally against a fresh volume before publishing:
 - The `approvals.mode: manual` line, appended to the base image's own
   `cli-config.yaml.example`, is present in the actual `config.yaml`
   written on first boot — confirmed by inspecting the seeded file.
+- `patch-web-search-schema.py`'s edit is present in the built image's
+  `web_tools.py`, and a live chat-completion request using `web_search`
+  no longer hits the schema-rejection error — confirmed on both the
+  macOS/Metal and Linux VPS/CPU deployments.
+- The `SOUL.md` addition is present in a fresh deployment's seeded
+  identity file (`docker/SOUL.md` copied into `$HERMES_HOME/SOUL.md` on
+  first boot) — confirmed by inspecting the seeded file, and separately
+  verified behavioral (see `../shared/model-notes.md`'s #48 section).
 
 ## CI
 
