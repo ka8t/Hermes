@@ -56,16 +56,26 @@ if [ "$status" != "healthy" ]; then
 fi
 echo "ok   llama-swap is healthy"
 
-echo "==> GET /v1/models should list the configured model"
+echo "==> GET /v1/models should list a real model"
 models_json="$(curl -sf http://127.0.0.1:8080/v1/models)"
-echo "$models_json" | grep -q '"qwen2.5-coder-7b"' \
-  && echo "ok   model ID present" \
-  || { echo "FAIL: model ID missing from $models_json"; exit 1; }
+# Read the real model ID rather than assuming one — config/models.yaml.example's
+# top-level model key ("llama-3.1-8b-instruct") is a fixed label independent
+# of MODEL_FILE (only the --model *path* is parameterized by it), so it never
+# matches a swapped-in test model's own name. Asserting a hard-coded ID here
+# was a real bug (issue #54): this check passed only by accident, or never at
+# all — confirmed CI had been failing on this exact line for 10+ consecutive
+# runs before the fix.
+REAL_MODEL_ID="$(echo "$models_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])' 2>/dev/null)"
+if [ -z "${REAL_MODEL_ID}" ]; then
+  echo "FAIL: no model ID found in $models_json"
+  exit 1
+fi
+echo "ok   model ID present: ${REAL_MODEL_ID}"
 
 echo "==> POST /v1/chat/completions should get a real reply (spawns llama-server)"
 reply="$(curl -sf http://127.0.0.1:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"qwen2.5-coder-7b","messages":[{"role":"user","content":"Reply with exactly one word: OK"}],"max_tokens":10}')"
+  -d "{\"model\":\"${REAL_MODEL_ID}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":10}")"
 echo "$reply" | grep -q '"content"' \
   && echo "ok   got a completion: $reply" \
   || { echo "FAIL: no completion in $reply"; exit 1; }
