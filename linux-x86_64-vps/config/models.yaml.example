@@ -21,4 +21,14 @@ models:
       --ctx-size ${env.LLAMA_CTX_SIZE}
       --threads ${env.LLAMA_THREADS}
       --jinja
+      --flash-attn on
+      -ctk q8_0
+      -ctv q8_0
     ttl: 600
+    # -ctk/-ctv q8_0 quantize the KV cache (llama-server default: f16) —
+    # cuts llama-server's RSS at this repo's 65536-token context from
+    # ~15.8GB to ~12GB on this deployment's CPU build (8 threads),
+    # same speed (~6.2-6.6 tok/s either way), tool-calling verified
+    # unaffected — confirmed live, issue #52. Same fix already applied
+    # on the macOS/Metal path (macos-arm64/config/models.yaml.example),
+    # verified separately there.

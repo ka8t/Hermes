@@ -155,10 +155,17 @@ RSS dropped from ~14-15GB to **~9GB** at the same 65536-token context,
 same model, same speed (25-36 tokens/sec either way — no measurable
 slowdown), tool-calling verified unaffected (raw curl test plus the
 full `eval/regression-goal-drift.sh` through the real Hermes stack).
-Already the macOS default in `macos-arm64/config/models.yaml.example`.
-**Not yet verified on the Linux VPS (CPU) path** — don't assume the same
-result without testing there; quantized-KV-cache performance
-characteristics on CPU could differ from Metal.
+Already the default on both platforms:
+`macos-arm64/config/models.yaml.example` (Metal, above) and
+`linux-x86_64-vps/config/models.yaml.example`. **Confirmed live on the
+production VPS too (2026-09-04, Debian, 8 vCPU, CPU-only inference)**:
+RSS dropped from ~15.8GB to **~12GB** at the same 65536-token context,
+same speed (~6.2-6.6 tokens/sec either way — this deployment's
+CPU-bound baseline, unrelated to this change), tool-calling verified
+correct. So the memory win holds on both the Metal and CPU paths, even
+though the underlying quantized-KV-cache kernel implementation differs
+between them — worth knowing rather than assuming from one platform to
+the other, but in this case it transfers cleanly.
 
 **A debugging trap worth knowing about, hit live while measuring this**:
 a `pkill` that's supposed to stop `llama-swap`/`llama-server` before
