@@ -201,6 +201,7 @@ same official installer this project already relies on:
 ```bash
 ./scripts/install-hermes-native.sh    # curl | bash the official installer, idempotent
 ./scripts/setup-hermes-native.sh      # seeds ~/.hermes with this repo's config, approvals default, and skills
+./scripts/patch-native-hermes.sh      # applies this repo's #50/#48 fixes, which the official installer doesn't include
 ```
 
 `setup-hermes-native.sh` never overwrites an existing `~/.hermes/config.yaml`
@@ -212,6 +213,14 @@ workaround needed once Hermes itself isn't containerized), sets
 [`../shared/enterprise-safety.md`](../shared/enterprise-safety.md)), and
 copies this repo's [`skills/agent-creation`](../skills/agent-creation/) into
 `~/.hermes/skills/ka8t-hermes/`.
+
+`patch-native-hermes.sh` closes a gap the official installer leaves open:
+the Docker image (`../docker/Dockerfile`) bakes in two fixes at build time
+(#50's `web_search` schema patch, #48's `SOUL.md` verify-before-success
+instruction) that a native install has no equivalent step for. Run it after
+`setup-hermes-native.sh`, and again after any `hermes update` (an update
+re-clones the install and would silently drop the `web_tools.py` patch).
+Idempotent — safe to re-run.
 
 Then, same two terminals as before, just without `docker compose`:
 
@@ -303,6 +312,19 @@ parameters (optional env var: `HERMES_HOME`, default `~/.hermes`). Requires
 an existing `config.yaml` or `.env` under `HERMES_HOME` — seeds them only if
 missing — and always re-syncs `skills/ka8t-hermes/agent-creation/` from this
 repo.
+
+**`scripts/patch-native-hermes.sh`** — native-Hermes path only. No
+parameters (optional env var: `HERMES_HOME`, default `~/.hermes`). Applies
+the same two fixes `../docker/Dockerfile` bakes into the container image at
+build time — #50's `web_search` schema patch (edits
+`hermes-agent/tools/web_tools.py`) and #48's mandatory verify-before-success
+instruction (appends to `SOUL.md`) — since the official installer has no
+equivalent step and a native install would otherwise silently miss both.
+Idempotent: each patch checks its own current state (already-patched text
+present, expected old text present, or neither — the last case exits
+non-zero with a clear message rather than silently no-op'ing, since it means
+the installed `hermes-agent` version changed the file this script expects).
+Run after `setup-hermes-native.sh`, and again after any `hermes update`.
 
 **Not available on macOS**: `build-agent-template.sh` and
 `provision-user.sh` (multi-user profile isolation) currently only exist

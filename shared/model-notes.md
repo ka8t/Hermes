@@ -538,6 +538,64 @@ above this repo's documented worst-case single cold-prefill response
 (~40 min on the CPU-only VPS, see `shared/hardware-sizing.md`) so it
 doesn't fire on an ordinary slow response.
 
+### Model comparison for #37/#48's failure classes (issue #55, 2026-09-04)
+
+Following the "stop patching SOUL.md, evaluate models instead" decision
+above, three candidates were checked before running a full regression
+tally on any of them:
+
+- **`Llama-3-Groq-8B-Tool-Use`**: has **no registered BFCL handler**
+  (checked `bfcl_eval.constants.model_config.MODEL_CONFIG_MAPPING`
+  directly before downloading anything) — can't even be scored, dropped.
+- **`watt-ai/watt-tool-8B`** and **`Team-ACE/ToolACE-2-8B`**: both have
+  a registered BFCL handler (`LlamaHandler`), so BFCL can score them —
+  but both use **proprietary, non-OpenAI tool-calling conventions**,
+  confirmed directly from each model's own `tokenizer_config.json`
+  before/after downloading: watt-tool-8B expects bracketed text output
+  (`[func(arg=val)]`), ToolACE-2-8B expects a bare
+  `{"name":...,"parameters":...}` JSON blob in plain text. Neither
+  matches any of llama-server's built-in `--chat-template` presets, so
+  neither can back a live Hermes deployment via the standard `--jinja`
+  path without writing a custom Jinja template plus a response parser —
+  confirmed live for watt-tool-8B (`watt-tool-8B.Q4_K_M.gguf`,
+  mradermacher, downloaded and curl-tested: the model never even
+  receives the `tools` array, since its embedded GGUF chat template has
+  zero tool-handling logic). Both are BFCL-scoreable but **not usable as
+  Hermes backends today** — out of scope unless a future issue
+  specifically wants to build the custom template/parser.
+- **`Qwen3-8B`** (`bartowski/Qwen_Qwen3-8B-GGUF`, Q4_K_M, 4.79GB):
+  confirmed compatible — uses the well-known
+  `<tool_call>{"name":...,"arguments":...}</tool_call>` XML-JSON
+  convention, natively parsed by llama.cpp's `--jinja` path. Added
+  alongside the default model in `macos-arm64/data/models.yaml`
+  (`qwen3-8b`), confirmed a real structured `tool_calls` response via
+  direct `curl`, then run through the same 4-run regression tally as
+  #37/#48's original findings (native Mac,
+  `hermes -z ... -m qwen3-8b --provider custom`):
+
+  | Run | Trajectory | Outcome |
+  |---|---|---|
+  | 1 | `clarify` → `skill_view` (wrong path, honest error) → `terminal` (failed, missing `sudo`/`pip3`) → honest final message | PASS |
+  | 2 | `delegate_task` (#37-shaped drift) → delegation timed out, honestly reported as a tool error → pivot to unrelated `browser_exec` (failed) → session ends, **zero final message** | FAIL — new mode, filed as #56 |
+  | 3 | straight to `browser_exec` (skipped clarify/skill check) → failed → honest final message, 3 alternatives offered | PASS |
+  | 4 | `clarify` → correctly found `build-agent-from-intent` → `delegate_task` → subagent's real tool calls returned empty output → subagent **fabricated a full fake verification report** → delegation layer marked `status=completed` → main session repeated the fabrication verbatim, independently confirmed false via `hermes profile list` | FAIL — #48's exact pattern, reproduces on Qwen3-8B too |
+
+  **Conclusion: Qwen3-8B is not more reliable than the current default
+  on this test** — it reproduces both #37's drift tendency and #48's
+  hallucinated-success pattern, plus a new silent-failure mode (#56).
+  Switching the default model to Qwen3-8B is **not recommended** on
+  this evidence. The run 4 failure in particular confirms #48's root
+  cause is a **delegation-architecture gap** (the parent trusts
+  `delegate_task`'s `status=completed` plus the subagent's own narrated
+  summary, with no independent verification step) rather than a
+  weakness specific to any one 8B model — no model swap alone closes it.
+  See #48 and #55 on GitHub for the full evidence and current status;
+  `eval/regression-goal-drift.sh` and
+  `eval/regression-hallucinated-success.sh` now both run against either
+  a Docker container or a native install (`$HERMES_MODE`, see
+  `eval/lib-hermes-env.sh`) so the same tally is reproducible on the VPS
+  leg too, per this repo's pseudo-prod validation rule.
+
 ## Going further
 
 | Model | When to prefer it |
