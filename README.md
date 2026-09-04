@@ -6,6 +6,33 @@ A self-hosted AI agent that runs entirely on your own hardware — no
 cloud API key, no data sent to a third party — reachable from Telegram,
 and built to be studied and adapted, not only deployed as-is.
 
+## What works, what doesn't (yet)
+
+Real status, not marketing — every claim below traces to a closed
+GitHub issue or a live test, see `docs/ARCHITECTURE.md` for the full
+detail behind each line.
+
+**Live and tested**
+- Real Telegram bot, end-to-end, on your own hardware — no cloud API key, nothing leaves your machine
+- Local inference via [llama.cpp](https://github.com/ggml-org/llama.cpp) + [llama-swap](https://github.com/mostlygeek/llama-swap) — hot-swap models, Metal (Mac) or CPU (VPS)
+- Docker **or** fully-native path on both platforms, your choice
+- Guided agent creation — describe an agent in plain language, get a working profile back
+- Enterprise-safe default — every destructive action needs an explicit human yes
+- Real, measured tool-calling scores for the default model ([BFCL](docs/GLOSSARY.md#bfcl): 54.75% / 52.50%, not a vendor claim)
+- KV cache quantization documented and verified — several GB of RAM back on both platforms, same speed
+- CI-tested on every push (`test/smoke-vps.sh`)
+
+**Real limitations, not hidden**
+- The default 8B model has genuine tool-calling reliability gaps (documented failure rate on a known hard prompt; one behavioral fix shipped, not eliminated) — see `shared/model-notes.md`
+- `hermes -z`/oneshot mode bypasses every approval check by design — don't point it at anything destructive unattended
+- CPU-only VPS: first reply can take 20-40+ minutes on a large prompt before you've sized the hardware — budget for it
+- WhatsApp / Microsoft Teams — wired up, never tested against a real Meta/Microsoft account
+- Enterprise RAG (Google Drive / Confluence / SharePoint search) — specced only, nothing built
+- No delegated/group/SSO approval — one human approves everything, no team routing
+- Multi-user profiles — the mechanism works, never verified with a real second person
+- GPU on the VPS path — implemented, never tested on real GPU hardware
+- No side-by-side multi-model `/compare` command yet
+
 ## What this actually is
 
 - **A working example, not just a demo.** Clone it, follow one guide, and
