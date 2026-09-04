@@ -16,7 +16,7 @@ and built to be studied and adapted, not only deployed as-is.
   model serving ([llama.cpp](https://github.com/ggml-org/llama.cpp) +
   [llama-swap](https://github.com/mostlygeek/llama-swap)), and — as
   specced work in this repo progresses — retrieval-augmented generation
-  (RAG), model evaluation, and multi-channel routing. Every design
+  ([RAG](docs/GLOSSARY.md#rag)), model evaluation, and multi-channel routing. Every design
   decision in this repo is written down with its reasoning (see
   `docs/ARCHITECTURE.md` and the linked issues below), not just the code.
 - **A starting point to adapt, not a fixed product.** Swap the model, add
@@ -39,7 +39,8 @@ and built to be studied and adapted, not only deployed as-is.
 ## How it's built
 
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous
-Research's open-source, self-hosted AI agent) is wired to **local** LLMs
+Research's open-source, self-hosted AI agent) is wired to **local**
+[LLMs](docs/GLOSSARY.md#llm)
 served by [llama.cpp](https://github.com/ggml-org/llama.cpp) — no external
 API key, no data sent to a third-party service, everything runs on hardware
 you own or rent. [llama-swap](https://github.com/mostlygeek/llama-swap) sits
@@ -53,11 +54,11 @@ a Docker path and a native (no-Docker-at-all) path** for every component:
 | Configuration | Where | Model serving | Hermes | Guide |
 |---|---|---|---|---|
 | **macOS ARM64** | An Apple Silicon Mac | native (Metal acceleration) — same either way | Docker (`linux/arm64`) *or* native | [`macos-arm64/`](macos-arm64/) |
-| **Linux x86-64** | A rented VPS | Docker (CPU) *or* native | Docker (`linux/amd64`) *or* native | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
+| **Linux x86-64** | A rented [VPS](docs/GLOSSARY.md#vps) | Docker (CPU) *or* native | Docker (`linux/amd64`) *or* native | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
 
 Both wire Hermes to Telegram (see
 [`shared/telegram-setup.md`](shared/telegram-setup.md)), ship one model by
-default — **Meta-Llama-3.1-8B-Instruct** in `Q4_K_M` (see
+default — **Meta-Llama-3.1-8B-Instruct** in [`Q4_K_M`](docs/GLOSSARY.md#quantization) (see
 [`shared/model-notes.md`](shared/model-notes.md), and
 [`shared/managing-models.md`](shared/managing-models.md) to add more) — and
 default to official **prebuilt binaries** rather than building anything from
@@ -65,7 +66,7 @@ source (see [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md)).
 The Hermes web dashboard, when enabled, requires a real username/password
 (it refuses to start without one — see each platform's README). Both also
 ship [`ghcr.io/ka8t/hermes`](docker/) — the same Hermes, plus two bundled
-skills that let you describe a new agent in plain language and get a
+[skills](docs/GLOSSARY.md#skill-hermes) that let you describe a new agent in plain language and get a
 working profile back (see [`shared/managing-models.md`](shared/managing-models.md)
 and [`skills/agent-creation/`](skills/agent-creation/)), and an
 enterprise-safe approval default so nothing destructive ever runs without
@@ -92,8 +93,8 @@ fastest to set up (one bot token from BotFather, one allow-list of user
 IDs).
 
 **llama.cpp (via llama-swap in front of it)** is the local brain. It's the
-engine that actually runs the language model (loads the GGUF weights,
-generates tokens) and exposes it over an OpenAI-compatible HTTP API. Hermes
+engine that actually runs the language model (loads the [GGUF](docs/GLOSSARY.md#gguf) weights,
+generates tokens) and exposes it over an OpenAI-compatible [HTTP](docs/GLOSSARY.md#http--https) API. Hermes
 Agent sends it a request every time it needs to "think" — to reply, to
 decide whether to use a tool, or to follow a skill.
 
@@ -115,7 +116,7 @@ Phone (Telegram)
 
 ## Why native on Mac but Docker by default on the VPS?
 
-Docker Desktop for Mac cannot expose the Metal GPU to a container — running
+Docker Desktop for Mac cannot expose the Metal [GPU](docs/GLOSSARY.md#gpu--gpu-layers--offload) to a container — running
 `llama-server` inside it would fall back to CPU-only inference. On a Mac,
 llama-swap and the `llama-server` it spawns therefore always run natively
 (full Metal access), while Hermes itself can go either way (Docker by
@@ -128,7 +129,7 @@ all.
 
 ## Why these defaults?
 
-Hermes requires at least 64,000 tokens of context to work properly (memory +
+Hermes requires at least 64,000 [tokens](docs/GLOSSARY.md#token--tokens-per-second-toks) of [context](docs/GLOSSARY.md#context-window) to work properly (memory +
 tools + history are sent on every call), and tool calls only execute with
 llama.cpp's `--jinja` flag — both easy-to-miss points are explained and
 already handled in both configurations. See
@@ -179,7 +180,7 @@ Hermes/
 - [`shared/teams-setup.md`](shared/teams-setup.md) — Microsoft Teams channel (unverified)
 - [`shared/hardware-sizing.md`](shared/hardware-sizing.md) — check your real CPU/RAM/GPU before trusting this repo's documented performance numbers
 - [`shared/gpu-setup.md`](shared/gpu-setup.md) — optional NVIDIA/AMD/Intel GPU support for the Linux VPS path (implemented, not live-verified — see [#13](https://github.com/ka8t/Hermes/issues/13))
-- [`shared/model-evaluation.md`](shared/model-evaluation.md) — BFCL (tool-calling reliability, `eval/`) and `llama-bench` (throughput, specced only) evaluation (see [#28](https://github.com/ka8t/Hermes/issues/28)). Real BFCL v4 scores for the default model on this Mac (M1, Metal): **54.75%** on `simple_python` (400/400 cases), **52.50%** on `parallel` (200/200) — `multi_turn` categories not yet
+- [`shared/model-evaluation.md`](shared/model-evaluation.md) — [BFCL](docs/GLOSSARY.md#bfcl) (tool-calling reliability, `eval/`) and `llama-bench` (throughput, specced only) evaluation (see [#28](https://github.com/ka8t/Hermes/issues/28)). Real BFCL v4 scores for the default model on this Mac (M1, Metal): **54.75%** on `simple_python` (400/400 cases), **52.50%** on `parallel` (200/200) — `multi_turn` categories not yet
   completed, see [`shared/model-evaluation.md`](shared/model-evaluation.md#model-evaluation-bfcl-29) for why.
 - [`shared/model-comparison.md`](shared/model-comparison.md) — `/compare`, an in-channel command to ask several models the same question side by side (specced, not yet implemented — see [#39](https://github.com/ka8t/Hermes/issues/39))
 
