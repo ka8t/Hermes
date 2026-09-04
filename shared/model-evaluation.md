@@ -11,18 +11,43 @@ dependencies, and a genuine model-routing incompatibility with
 llama-swap). See `eval/setup-bfcl.sh`, `eval/run-bfcl.sh`, and
 `eval/model_alias_proxy.py`.
 
-**Honest test status (2026-09-03)**: after fixing all five issues listed
-below, a live run against this deployment's own llama-swap (a MacBook
-Pro M1) completed **100 of 399** "simple" test cases with zero errors —
-real, correct proof that the model-routing fix and request serialization
-both work. The run was then interrupted by an unrelated environment
-issue (a long-lived background process losing its connection to this
-session) before finishing the remaining cases, twice. No accuracy
-percentage for the full "simple" category exists yet — the pipeline is
-proven correct, a complete score is not yet in hand. Re-running to
-completion (`cd eval && ./run-bfcl.sh 127.0.0.1 8080`, ideally left
-running uninterrupted in its own terminal rather than through this kind
-of session) is the natural next step, not a new implementation task.
+**Honest test status (2026-09-04)**: a full local run (this MacBook Pro
+M1, Metal-accelerated llama-server via llama-swap) was started for
+`simple_python`, `parallel`, and `multi_turn` (1400 cases combined) and
+run for ~7.5 hours before being deliberately stopped by the user — the
+multi-turn categories are slow enough (each test case is a multi-step
+conversation, several sequential model calls; a single llama-server
+instance handling them one at a time, no batching) that completing all
+of them would have taken an estimated 20+ hours, and the machine was
+under load from other work at the same time. Two categories finished
+completely before the stop and were scored for real:
+
+| Category | Cases | Accuracy |
+|---|---|---|
+| `simple_python` | 400/400 | **54.75%** |
+| `parallel` | 200/200 | **52.50%** |
+
+These are real, complete BFCL v4 scores for this model
+(`Llama-3.1-8B-Instruct-FC`, Q4_K_M) on this hardware — not partial or
+estimated. The `multi_turn` categories were stopped mid-run
+(`multi_turn_base`: 191/200 generated; `multi_turn_long_context`: 52/200;
+`multi_turn_miss_func`/`multi_turn_miss_param`: not started) and were
+**not** scored — an incomplete multi-turn run isn't a fair or meaningful
+percentage, so none is reported rather than a misleading one. `bfcl
+evaluate`'s own overall/leaderboard accuracy figure (visible in
+`eval/bfcl-workspace/score/data_overall.csv`) is **not** used here for
+the same reason: it weights every BFCL category including the untested
+ones (live, multi_turn, web_search, memory), which count as 0% and drag
+the composite figure down to a meaningless 1.77% — the two per-category
+numbers above are the real signal.
+
+Completing the `multi_turn` categories (and the VPS leg, per this repo's
+local-then-remote testing order) is a possible future re-run, not a
+blocker on anything currently — `simple_python` and `parallel` already
+give real signal on single- and parallel-call tool-calling reliability,
+this repo's most common usage pattern. Re-running
+(`cd eval && ./run-bfcl.sh 127.0.0.1 8080`) reuses the exact same,
+already-fixed pipeline.
 
 Two independent tools, two independent questions:
 
@@ -257,9 +282,11 @@ deployment; #30's per-deployment benchmark does).
 
 ## What this page is not
 
-This is not a benchmark results archive — a partial BFCL run (100/399
-cases, see above) is the only real data point so far, and `llama-bench`
-hasn't been run at all for this repo's model list. This page is the
+This is not a benchmark results archive — two complete, real BFCL
+category scores (`simple_python`, `parallel`, see above) are the only
+real data points so far, the `multi_turn` categories were stopped
+incomplete and unscored, and `llama-bench` hasn't been run at all for
+this repo's model list. This page is the
 reproducible recipe an admin (or a future implementation of #30-#31)
 will follow. Real, complete numbers belong in #30's results database
 once it exists, not in
