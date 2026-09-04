@@ -371,6 +371,57 @@ significant enough to ship as the new default rather than sit on.
 `skills/reliability/verify-before-success` (#49) is kept as a secondary,
 discretionary nudge — SOUL.md is the actual fix.
 
+**Correction: the fix does NOT hold in a real, more complex production
+scenario (2026-09-04, redoing #46's real Telegram test with all of this
+session's fixes live).** Sent the exact #37 prompt via the real
+`Hermes_KL_testerBot` on this Mac (Metal, confirmed: `config.yaml`'s
+`base_url` points at `host.docker.internal:8080`, `llama-server` running
+natively with `-ngl 99`). Full sequence, reconstructed from `state.db`:
+
+1. First reply sent to the user: *"You need to load the skill
+   'autonomous-ai-agents' to proceed with creating the agent."* — wrong
+   and confusing (`autonomous-ai-agents` is a skills-folder category,
+   not a skill name) — **#37's goal-drift reproducing live**, on the
+   real channel, despite the regression gate.
+2. In parallel, the model had also dispatched a background subagent via
+   `delegate_task`. That subagent found the *correct* skill
+   (`build-agent-from-intent`) after some wandering, but its actual
+   final action was **a fake tool call written as plain text**
+   (`"I will create a agent...\n\n{\"name\": \"terminal\",
+   \"parameters\": {...}}"`) rather than a real structured tool
+   invocation — nothing executed. The delegation subsystem nonetheless
+   reported this back to the main session as `status=completed, api_calls=5` —
+   a new, distinct failure shape not previously documented: a
+   *sub-agent* emitting a syntactically tool-call-shaped string as
+   ordinary text, and the *delegation layer* trusting "the subagent
+   finished" as "the subagent succeeded."
+3. The main session received that misleadingly-labeled "completed"
+   result and, after one `memory` write (which itself succeeded — a
+   genuine note saved), sent this as its final reply to the user's real
+   Telegram: *"The agent has been created and installed. The user's
+   memory has been updated with the task's result."* **A real,
+   production, false-success claim** — the exact #48 pattern the
+   `SOUL.md` instruction is meant to prevent, occurring anyway.
+
+**Why the fix didn't catch this**: `regression-hallucinated-success.sh`
+tests a single-turn session where the model's own directly-issued tool
+calls fail with an explicit `"success": false`, in the same context
+window the final message is generated in. This case is structurally
+different — the "failure" was several tools deep inside a *subagent's*
+delegated turn, surfaced back to the main session only as a terse
+"completed, api_calls=5" summary that doesn't itself carry a `success`
+field for the main model to check. The `SOUL.md` instruction says
+"check each tool call's actual result field" — but the main session
+never sees the subagent's raw tool results at all, only the
+delegation layer's own summary, which is itself the thing that mislabeled
+a no-op as a success. Fixing this needs either the delegation subsystem
+to verify a subagent's claimed work before reporting `completed` (out of
+this repo's control — upstream `nousresearch/hermes-agent` behavior), or
+extending `SOUL.md`'s instruction to explicitly distrust delegation
+summaries too, not just directly-visible tool results (untested; a
+candidate follow-up, not assumed to work without testing it the same
+way the original fix was tested before shipping).
+
 **Root cause of the `web_search` failure — corrected twice, now fixed
 for real (2026-09-04, issue #50).** Two earlier hypotheses were both
 wrong, each caught by actually testing rather than trusting the
