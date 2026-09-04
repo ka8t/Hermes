@@ -209,7 +209,7 @@ linked `shared/*.md` file or the issue itself.
 | Global (cross-profile) stats/logs/KPI dashboard | #35 | Per-profile stats live; cross-profile admin aggregation unbuilt | — |
 | Deployment scripts ported from bash to Rust | #36 | Specced only | — |
 | In-channel multi-model comparison (`/compare`) | #39 | Specced only | `shared/model-comparison.md` |
-| Agentic goal-drift, hallucinated success, silent failure | #37 (closed), #48 (**reopened**), #55, #56 | #37 fixed with an automated regression gate; #48's directly-visible case fixed but insufficient for delegation-originated fabrications — reopened; #55 found no model swap fixes it; #56 (new) is a distinct silent-failure mode, not yet root-caused | `shared/model-notes.md` |
+| Agentic goal-drift, hallucinated success, silent failure | #37 (closed), #48 (open, stopgap shipped), #55 (closed), #56 (open) | #37 fixed with an automated regression gate; #48's root cause needs an upstream `hermes-agent` fix ([reported](https://github.com/NousResearch/hermes-agent/issues/102977)) — a local disclaimer stopgap ships in the meantime, validated 3/3 on real delegation runs; #55 found no model swap fixes it; #56 is a distinct silent-failure mode, not yet root-caused | `shared/model-notes.md` |
 | `web_search` tool-name collision with llama-server | #50 | **Fixed** — llama-server hardcodes name-based handling for any tool called `web_search`; fixed by dropping the `limit` parameter from this repo's schema | `shared/model-notes.md` |
 | `single_query_mode` approval-bypass verification | #38 | **Resolved** — `hermes -z` always bypasses approvals by design; this repo's own docs had conflated it with `single_query_mode`, now corrected | `shared/enterprise-safety.md` |
 

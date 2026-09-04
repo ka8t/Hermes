@@ -596,6 +596,57 @@ tally on any of them:
   `eval/lib-hermes-env.sh`) so the same tally is reproducible on the VPS
   leg too, per this repo's pseudo-prod validation rule.
 
+### Delegation-fabrication stopgap and upstream report (#48, 2026-09-04)
+
+Grilled the direction after confirming instruction-based mitigation is
+exhausted for this exact failure: `docker/SOUL.md`'s original
+verify-before-success instruction and a v2 delegation-distrust
+extension both failed, and reading `tools/delegate_tool.py` directly
+showed `delegate_task`'s own upstream tool-description text *already*
+carries near-identical wording ("Child summaries are SELF-REPORTS, not
+verified facts... verify it yourself before telling the user the
+operation succeeded") — present in the live schema for both real
+reproductions. Three straight instruction attempts against "judge
+whether to trust a delegated claim" failing is strong evidence a fourth
+wording isn't the fix. Also confirmed: Hermes's own hook system
+(`agent:step` etc.) is observational-only, so a deterministic guard
+that rewrites a tool result before it reaches the model isn't buildable
+from this repo's side without touching `hermes-agent`'s own dispatch
+code.
+
+**Two tracks shipped in parallel:**
+
+1. **Upstream report**:
+   [NousResearch/hermes-agent#102977](https://github.com/NousResearch/hermes-agent/issues/102977)
+   — proposes separating "process completed" from "task verified" in
+   `delegate_task`'s return. No control over timeline or acceptance.
+2. **Local stopgap**: an *unconditional* disclaimer, appended to any
+   reply that relied on a `delegate_task` result this turn regardless
+   of content — deliberately not keyword-conditioned on the subagent's
+   text (considered and rejected: imperfect in both directions). The
+   ask is a simpler compliance target than "judge trustworthiness" —
+   "always append this exact note when X happened" — but still
+   instruction-based, so not a provable guarantee. Shipped in
+   `docker/Dockerfile` (appended to the base image's `SOUL.md` seed,
+   same mechanism as #48's original fix) and
+   `macos-arm64/scripts/patch-native-hermes.sh` (native equivalent).
+
+**Validated (2026-09-04, native Mac, default model, 4 runs via
+`HERMES_MODE=native ./eval/regression-hallucinated-success.sh`)**: 1 run
+never reached `delegate_task` (N/A); the other 3 all exercised
+delegation, and **all 3 carried the disclaimer** — one bare (no other
+explanation), one alongside a `status=completed` claim, and one
+alongside a fully honest explanation of a real timeout. **3/3** on
+every run that actually tested the mechanism — a real, consistent,
+positive signal, small-sample caveat applying the same way it did to
+#37's 4/6 finding. The underlying gap (a subagent can still fabricate a
+summary with nothing on the parent's side to catch it) is unchanged —
+this stopgap only guarantees the user is told to check, not that
+checking happens automatically. `#48` stays open pending the upstream
+report's outcome. See `hermes_delegation_trust_gap.md` (local memory)
+for why a further prompt-wording attempt at this exact problem isn't
+worth proposing again.
+
 ## Going further
 
 | Model | When to prefer it |
