@@ -74,8 +74,13 @@ bodies, config files, tool-call arguments.
 ## KV cache
 "Key-value cache" — the working memory llama.cpp keeps while generating
 text, so it doesn't have to recompute earlier tokens from scratch on
-every new one. Its size scales with context length, which is part of why
-a bigger context window costs more RAM/VRAM.
+every new one. Its size scales with context length (part of why a bigger
+context window costs more RAM/VRAM) **and with model architecture** —
+layer count and number of KV attention heads, not total parameter
+count, so a smaller model isn't automatically a smaller KV cache. Like
+model weights, the KV cache itself can also be quantized (`-ctk`/`-ctv`,
+independent of the model's own weight quantization) to cut its memory
+footprint — see `shared/hardware-sizing.md`.
 
 ## LLM
 Large Language Model — the actual AI model (e.g. Meta-Llama-3.1-8B) that
@@ -128,6 +133,14 @@ instructions (not code) that guide the model through a multi-step task,
 like `skills/agent-creation/clarify-agent-intent`. Distinct from a
 **tool**, which is a concrete function-calling capability (like
 `terminal` or `web_search`).
+
+## SOUL.md
+Hermes's identity file (in `$HERMES_HOME`) — unlike a **skill**, it is
+always injected into every system prompt, never something the model has
+to decide to consult. This repo bakes a mandatory
+verify-before-claiming-success instruction into it (see
+`shared/model-notes.md`'s #48 section) precisely because that
+reliability matters more than a skill's convenience of being optional.
 
 ## SQL
 Structured Query Language — the standard language for querying/managing

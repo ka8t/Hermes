@@ -2,13 +2,16 @@
 
 See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
 
-**Status: #29's BFCL path is implemented and partially live-verified;
-#30/#31 are still specced only.** Written before implementation per this
-repo's specs → issues → documentation → implementation → tests
+**Status: #29's BFCL path is implemented, containerized (#51), and has
+produced real, complete accuracy scores for two categories (#42,
+closed); #30/#31 are still specced only.** Written before implementation
+per this repo's specs → issues → documentation → implementation → tests
 workflow — this section was updated after live-testing surfaced several
 real corrections to the original design (wrong env var names, missing
-dependencies, and a genuine model-routing incompatibility with
-llama-swap). See `eval/setup-bfcl.sh`, `eval/run-bfcl.sh`, and
+dependencies, a genuine model-routing incompatibility with llama-swap,
+and — separately, after implementation — two live bfcl-eval version
+upgrades that renamed a category and changed its env vars again). See
+`eval/setup-bfcl.sh`, `eval/run-bfcl.sh`, `eval/Dockerfile`, and
 `eval/model_alias_proxy.py`.
 
 **Honest test status (2026-09-04)**: a full local run (this MacBook Pro

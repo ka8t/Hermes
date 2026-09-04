@@ -1,5 +1,7 @@
 # Ready-to-run Hermes Agent image: the upstream image, plus this repo's
-# guided agent-creation skills and an enterprise-safe approval default.
+# guided agent-creation skills, an enterprise-safe approval default, a
+# fix for a real llama-server bug (#50), and a mandatory
+# verify-before-success identity instruction (#48).
 #
 # What this does NOT bundle: a model, or llama-swap/llama-server — those
 # stay separate services (see ../macos-arm64/ and ../linux-x86_64-vps/),
