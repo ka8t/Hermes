@@ -19,4 +19,14 @@ models:
       --ctx-size ${env.LLAMA_CTX_SIZE}
       -ngl 99
       --jinja
+      --flash-attn on
+      -ctk q8_0
+      -ctv q8_0
     ttl: 600
+    # -ctk/-ctv q8_0 quantize the KV cache (llama-server default: f16) —
+    # cuts llama-server's RSS at this repo's 65536-token context from
+    # ~14-15GB to ~9GB on this Mac (M1, Metal), same speed (25-36 tok/s
+    # either way), tool-calling verified unaffected — confirmed live,
+    # issue #52. --flash-attn is required for quantized KV cache in
+    # llama.cpp. macOS/Metal only — not yet verified on the Linux VPS
+    # (CPU) path, don't assume it holds there without testing.

@@ -135,9 +135,55 @@ All of #11's original sub-issues are resolved:
 
 Nothing is left unimplemented from the original hardware-sizing scope.
 
+## Reducing memory: KV cache quantization, not a smaller model (issue #52)
+
+At this repo's required 64k context (see `shared/model-notes.md`), the KV
+cache — not the model weights — dominates `llama-server`'s memory
+footprint, and its size is set by architecture (`num_hidden_layers ×
+num_key_value_heads × head_dim`), not total parameter count. Checked
+directly against real model configs before assuming otherwise: Qwen3-8B
+(36 layers) and even Qwen3-4B (also 36 layers, identical KV
+configuration to Qwen3-8B) both have a *larger* KV cache than this
+repo's default Llama-3.1-8B-Instruct (32 layers) — switching to a
+smaller model would not meaningfully reduce memory here, and could make
+it worse.
+
+The real lever, confirmed live on this Mac (M1, Metal): `llama-server`'s
+`-ctk`/`-ctv` flags (KV cache quantization, default `f16`) plus
+`--flash-attn on` (required for quantized KV cache). Set to `q8_0`:
+RSS dropped from ~14-15GB to **~9GB** at the same 65536-token context,
+same model, same speed (25-36 tokens/sec either way — no measurable
+slowdown), tool-calling verified unaffected (raw curl test plus the
+full `eval/regression-goal-drift.sh` through the real Hermes stack).
+Already the macOS default in `macos-arm64/config/models.yaml.example`.
+**Not yet verified on the Linux VPS (CPU) path** — don't assume the same
+result without testing there; quantized-KV-cache performance
+characteristics on CPU could differ from Metal.
+
+**A debugging trap worth knowing about, hit live while measuring this**:
+a `pkill` that's supposed to stop `llama-swap`/`llama-server` before
+changing `-ctk`/`-ctv` and restarting can fail silently — the new
+process then fails to bind its port ("address already in use", visible
+only in its own log, not surfaced as an error to whoever ran the
+restart) while the *old*, stale process keeps answering requests with
+whatever config it was already running. This produced a wildly wrong
+first reading here (0.07-0.15 tokens/sec, looking like a catastrophic
+regression) before being caught by explicitly confirming the process
+PID changed and the port was genuinely free before re-testing. Any
+"it got much slower after this config change" finding on this repo's
+llama-server should rule this out first — check the actual serving
+PID, don't trust that a restart command succeeded just because it
+returned.
+
 ## Sources
 
 - This repo's own live incident (commits 032302b, and the model-notes.md
   agentic-drift entry) — not a third-party source, direct observation.
 - `nproc`, `free`, `lscpu`, `nvidia-smi` — standard Linux utilities, see
   their respective man pages.
+- `-ctk`/`-ctv`/`--flash-attn` flags and their allowed values — fetched
+  directly from this repo's own built `llama-server --help` output, not
+  assumed. Model architecture values (`num_hidden_layers`,
+  `num_key_value_heads`, `head_dim`) for Llama-3.1-8B-Instruct, Qwen3-8B,
+  and Qwen3-4B — fetched directly from each model's own `config.json` on
+  Hugging Face, not assumed from parameter count alone.
