@@ -179,7 +179,8 @@ Hermes/
 - [`shared/teams-setup.md`](shared/teams-setup.md) — Microsoft Teams channel (unverified)
 - [`shared/hardware-sizing.md`](shared/hardware-sizing.md) — check your real CPU/RAM/GPU before trusting this repo's documented performance numbers
 - [`shared/gpu-setup.md`](shared/gpu-setup.md) — optional NVIDIA/AMD/Intel GPU support for the Linux VPS path (implemented, not live-verified — see [#13](https://github.com/ka8t/Hermes/issues/13))
-- [`shared/model-evaluation.md`](shared/model-evaluation.md) — BFCL (tool-calling reliability, `eval/`) and `llama-bench` (throughput, specced only) evaluation (see [#28](https://github.com/ka8t/Hermes/issues/28)). Real BFCL v4 scores for the default model on this Mac (M1, Metal): **54.75%** on `simple_python` (400/400 cases), **52.50%** on `parallel` (200/200) — `multi_turn` categories not yet completed, see the doc for why.
+- [`shared/model-evaluation.md`](shared/model-evaluation.md) — BFCL (tool-calling reliability, `eval/`) and `llama-bench` (throughput, specced only) evaluation (see [#28](https://github.com/ka8t/Hermes/issues/28)). Real BFCL v4 scores for the default model on this Mac (M1, Metal): **54.75%** on `simple_python` (400/400 cases), **52.50%** on `parallel` (200/200) — `multi_turn` categories not yet
+  completed, see [`shared/model-evaluation.md`](shared/model-evaluation.md#model-evaluation-bfcl-29) for why.
 - [`shared/model-comparison.md`](shared/model-comparison.md) — `/compare`, an in-channel command to ask several models the same question side by side (specced, not yet implemented — see [#39](https://github.com/ka8t/Hermes/issues/39))
 
 ## Security
