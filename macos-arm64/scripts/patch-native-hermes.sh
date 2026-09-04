@@ -64,7 +64,7 @@ else:
 PY
 
 # --- #48: mandatory verify-before-success instruction in SOUL.md ---
-# See ../../docker/SOUL.md and ../../shared/model-notes.md's #48 section.
+# See ../../docker/Dockerfile and ../../shared/model-notes.md's #48 section.
 MARKER="Before sending any message that states or implies a task succeeded"
 if [ ! -f "${SOUL_MD}" ]; then
   echo "!! ${SOUL_MD} not found — run ./install-hermes-native.sh first." >&2
@@ -76,4 +76,18 @@ else
   printf '\n\nBefore sending any message that states or implies a task succeeded, completed, or was created/saved/updated — list the tool calls that outcome depends on and check each one'"'"'s actual result field, not its intended purpose. If any of them returned an error or success:false, say so plainly and name what failed; never describe a failed tool call in the past tense as something that worked. A well-written, confident summary of a failed attempt is still a false report.' \
     >> "${SOUL_MD}"
   echo "==> SOUL.md patched (#48)"
+fi
+
+# --- #48: delegation-fabrication stopgap disclaimer in SOUL.md ---
+# See ../../docker/Dockerfile and ../../shared/model-notes.md's #48 section,
+# and https://github.com/NousResearch/hermes-agent/issues/102977 (the
+# upstream report for the durable fix). Unconditional stopgap: not a
+# claim this closes the gap by itself.
+DELEG_MARKER="Whenever your reply to the user relies on a delegate_task result"
+if grep -qF "${DELEG_MARKER}" "${SOUL_MD}"; then
+  echo "==> SOUL.md already has the delegation-disclaimer stopgap (#48) — left as is"
+else
+  printf '\n\nWhenever your reply to the user relies on a delegate_task result — whether or not it appears to have succeeded — append this exact note at the end of your message: "Note: this involved a delegated subtask; please verify the reported outcome independently before relying on it." Add it every time delegate_task was used this turn, with no exception for results that look successful.' \
+    >> "${SOUL_MD}"
+  echo "==> SOUL.md patched with delegation-disclaimer stopgap (#48)"
 fi

@@ -67,6 +67,25 @@ RUN python3 /tmp/patch-web-search-schema.py && rm /tmp/patch-web-search-schema.p
 RUN printf '\n\nBefore sending any message that states or implies a task succeeded, completed, or was created/saved/updated — list the tool calls that outcome depends on and check each one'"'"'s actual result field, not its intended purpose. If any of them returned an error or success:false, say so plainly and name what failed; never describe a failed tool call in the past tense as something that worked. A well-written, confident summary of a failed attempt is still a false report.' \
     >> /opt/hermes/docker/SOUL.md
 
+# --- Delegation-fabrication stopgap (#48, spec'd 2026-09-04) ---
+# The instruction above, and delegate_task's own upstream tool-description
+# text (which already warns that child summaries are self-reports, not
+# verified facts), both failed to prevent two real, confirmed cases of a
+# delegated subagent fabricating a success narrative that the parent then
+# repeated verbatim to the user — see shared/model-notes.md's #48 section
+# and https://github.com/NousResearch/hermes-agent/issues/102977 (the
+# upstream report filed for the durable fix). This is an unconditional
+# stopgap, not a claim of a guarantee: any reply that relies on a
+# delegate_task result gets a fixed disclaimer appended, regardless of
+# what the subagent claimed — deliberately not conditioned on keyword-
+# matching the subagent's text (considered and rejected: imperfect in
+# both directions). Still instruction-based, so not provably 100%
+# reliable, but a simpler compliance target ("always append this note
+# when X happened") than the judgment call the three prior attempts
+# asked for ("decide whether this claim is trustworthy").
+RUN printf '\n\nWhenever your reply to the user relies on a delegate_task result — whether or not it appears to have succeeded — append this exact note at the end of your message: "Note: this involved a delegated subtask; please verify the reported outcome independently before relying on it." Add it every time delegate_task was used this turn, with no exception for results that look successful.' \
+    >> /opt/hermes/docker/SOUL.md
+
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
 # base image's first-boot seed copies verbatim into a fresh deployment's
