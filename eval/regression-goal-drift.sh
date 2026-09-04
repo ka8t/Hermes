@@ -32,7 +32,12 @@ RUN_PID=$!
 SESSION_ID=""
 TOOL_NAME=""
 # No `timeout` on macOS by default — poll with an iteration cap instead.
-for _ in $(seq 1 40); do
+# 200 * 3s = 10 min: generous enough that a genuinely slow turn (cold
+# skill-loading, a long first response) doesn't get misread as "no tool
+# call" — the original 40-iteration (2 min) window was too short, timing
+# out a real run before its outcome could be observed either way (found
+# live 2026-09-04).
+for _ in $(seq 1 200); do
   if [ -z "${SESSION_ID}" ]; then
     SESSION_ID="$(docker exec "${CONTAINER}" python3 -c "
 import sqlite3

@@ -218,6 +218,28 @@ BFCL's own category breakdown (which specific calls failed and how) is
 the tool for telling these apart; don't collapse a failing run into a
 single pass/fail number.
 
+### This repo's own regression case (#37)
+
+Separate from BFCL's own datasets: `eval/regression-goal-drift.sh` runs
+this repo's own real, previously-observed failure — the exact prompt
+"Create an agent that watches a subreddit for AI news and messages me
+when something important comes up" — against a running local Hermes
+container, and checks whether the model's first tool call is a
+project-specific skill (correct) or `delegate_task` (the documented
+goal-drift failure, see `shared/model-notes.md`'s #37 section). Unlike
+BFCL's own categories, this checks something BFCL's generic datasets
+can't: whether a candidate model correctly prefers *this repo's own*
+skills over a superficially-similar generic built-in tool. Not
+deterministic for the default model — 6 back-to-back runs (2026-09-04)
+split 4 `FAIL` (`delegate_task`) / 2 `PASS` (`skill_view`), ordinary LLM
+sampling variance rather than a 100%-reproducible bug. Run it several
+times and read the failure rate, not a single pass/fail — see
+`shared/model-notes.md`'s #37 section.
+
+```bash
+cd eval && ./regression-goal-drift.sh
+```
+
 ## Hardware/config evaluation: llama-bench (#30)
 
 **Verified against llama.cpp's own `tools/llama-bench` docs**, not

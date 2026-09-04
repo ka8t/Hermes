@@ -212,6 +212,32 @@ Meta-Llama-3.1-8B-Instruct with unattended multi-step tasks (cron jobs,
 a regression case to that evaluation suite (issue #29) rather than left
 as an anecdote.
 
+**The regression gate now exists and is automated (2026-09-04, issue
+#37's last acceptance criterion)** — `eval/regression-goal-drift.sh`
+runs the exact prompt above via `hermes -z` against a running local
+container and checks whether the first tool call is a skill (`clarify`,
+`skill_view`/`skill_manage`) or the known-wrong `delegate_task`. This
+was blocked until now by an unrelated infrastructure problem: the
+model's actual first move on this prompt is a `web_search` call, which
+hit issue #50's bug (confirmed deterministic across 3 repeated attempts)
+before ever reaching the delegate_task-vs-skill decision — #37's own
+regression test was accidentally gated on #50. With #50's real fix
+deployed, the test runs cleanly end-to-end.
+
+**Run 6 times back-to-back, same prompt, same container, same model
+(2026-09-04) — the result is NOT deterministic**: 4 of 6 runs called
+`delegate_task` (the documented goal-drift failure), 2 of 6 called
+`skill_view` (correct). This is an important correction to the original
+framing (based on a single observed instance): the model doesn't
+*always* fail this prompt, it fails it **more often than not** —
+consistent with ordinary LLM sampling variance (this deployment's
+default, non-zero temperature) rather than a 100%-reproducible bug. The
+underlying finding stands (this is a real, frequent failure mode worth
+gating on), but a single run of `regression-goal-drift.sh` isn't
+statistically representative — running it several times and reading the
+failure *rate*, not a single pass/fail, is the honest way to use it
+until it's wired into a proper multi-sample harness.
+
 **Real end-to-end Telegram test protocol (issue #46, in progress,
 2026-09-03)** — every prior test of this prompt went through `hermes -z`
 (one-shot CLI), never a real Telegram round-trip, and #38 already showed
@@ -288,33 +314,70 @@ evaluation: a candidate model should be checked not just for whether it
 completes a task, but for whether a *failed* task is ever reported as a
 success.
 
-**Root cause of the local run's `web_search` failure — corrected after
-capturing the actual request (2026-09-03, issue #50).** An initial
-hypothesis (that `web_search` declares `additionalProperties: false`
-and the model added an out-of-schema property) turned out to be wrong —
-caught by actually capturing the real request/response with a logging
-relay rather than trusting the assumption. **Hermes's own declared
-schema for `web_search` explicitly allows an optional `limit`
-parameter** (integer, 1-100, default 5) alongside required `query` — no
-`additionalProperties: false` anywhere. The model used `limit` (a real,
-documented, valid parameter) and llama-server rejected it anyway, every
-time, deterministically. **This is a confirmed llama-server bug, not a
-model or Hermes bug**: llama-server's tool-call validation only honors
-`required` properties, silently ignoring legitimately declared optional
-ones. Filed upstream:
-[ggml-org/llama.cpp#28340](https://github.com/ggml-org/llama.cpp/issues/28340)
-— see issue #50 for the captured evidence.
+**Root cause of the `web_search` failure — corrected twice, now fixed
+for real (2026-09-04, issue #50).** Two earlier hypotheses were both
+wrong, each caught by actually testing rather than trusting the
+assumption:
 
-**Mitigation attempted and found ineffective**: a targeted skill
+1. *First guess (2026-09-03)*: `web_search` declares
+   `additionalProperties: false` and the model added an out-of-schema
+   property. Wrong — a logging relay capturing the real request showed
+   `limit` is a real, declared, valid optional parameter, no
+   `additionalProperties: false` anywhere.
+2. *Second guess (2026-09-03, from that first correction)*:
+   llama-server's tool-call validation only honors `required`
+   properties, silently ignoring valid optional ones — so making
+   `limit` required should fix it. Also wrong: implemented, rebuilt,
+   confirmed live (via the same logging relay) that the actual request
+   really did send `"required":["query","limit"]` — and llama-server
+   rejected it anyway, identically, immediately.
+
+**The real mechanism, confirmed via two independent, direct checks**:
+llama-server has **hardcoded, name-based special handling for any tool
+literally called `"web_search"`** — it validates the call against its
+own internal query-only contract regardless of what schema the client
+(Hermes) actually declares for that name.
+- `strings` on the compiled `llama-server` binary
+  (`/Users/mac/Documents/Code/llama.cpp/build/bin/llama-server`, version
+  8121/a0c91e8f9) contains both the literal string `web_search` and the
+  generic JSON-schema-validator error vocabulary
+  (`must only have these properties:`, `is missing property:`, etc.) —
+  a vendored validator library's messages, not llama.cpp's own text
+  (matching #50's original finding that the exact string appears
+  nowhere in llama.cpp's own repository via GitHub code search).
+- Direct A/B testing against the live server (raw `curl`, no Hermes
+  involved) confirmed it precisely: the *exact same* schema
+  (`query` + optional `limit`) succeeds when the tool is named anything
+  else (`my_custom_search`) and fails only when named `web_search`.
+
+**The fix**: remove `limit` from `web_search`'s schema entirely
+(`docker/patch-web-search-schema.py`, applied at image build time) —
+the model is never offered a parameter that triggers the collision.
+Renaming the tool itself (the other obvious fix) was considered and
+rejected: several of the base image's own bundled skills instruct the
+model to call `web_search` by that exact name in prose, and renaming
+would silently break all of them. Verified live: the exact regression
+prompt below no longer hits this error at all — the model proceeds past
+its first move.
+
+**Correcting the record**: the upstream bug report filed against this
+first (wrong) theory,
+[ggml-org/llama.cpp#28340](https://github.com/ggml-org/llama.cpp/issues/28340),
+has been updated with a comment describing the real mechanism above —
+worth tracking there since it's llama-server's actual behavior, not
+Hermes's, even though this repo doesn't depend on it being changed
+upstream anymore now that the code-level fix works.
+
+**Earlier mitigation attempt, now removed**: a targeted skill
 (`skills/reliability/web-search-query-only`) instructing the model to
 call `web_search` with only `query`, never `limit`, was written and
-tested live (three repeated attempts, Mac/Metal) — the model kept
-including a rejected parameter regardless, matching #37's own
-established finding that this model doesn't reliably follow skill
-instructions even when directly on-point. The skill is kept
-(harmless, might help a more instruction-following model), but isn't
-relied on as an actual fix — the real fix is either llama-server's
-upstream patch (#50) or picking a different model (#28-#32).
+tested live against the *first* wrong theory — ineffective (the model
+kept including `limit` regardless, matching #37's own established
+finding that this model doesn't reliably follow skill instructions even
+when directly on-point) and, now, moot: the schema itself no longer
+offers `limit` at all, so there's nothing left to instruct the model to
+avoid. Removed rather than left around describing an incorrect root
+cause.
 
 **Defense-in-depth, implemented 2026-09-03 (not the fix — model
 verification above is)**: `agent.run_budget_seconds: 3600` is now set in
