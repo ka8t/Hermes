@@ -31,3 +31,7 @@ macos-arm64/llama-swap.log
 # Editors
 .vscode/
 .idea/
+
+# Static Code Audit (SCA) tool cache — rule compilation cache, regenerated
+# on every run, see docs/audit-reports/ for the actual committed reports
+.sca-cache/

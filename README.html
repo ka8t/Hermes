@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>README.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="hermes">Hermes</h1>
+<p>See also: <a href="docs/GLOSSARY.md">Glossary</a> for acronyms/technical terms used below.</p>
+<p>A self-hosted AI agent that runs entirely on your own hardware — no
+cloud API key, no data sent to a third party — reachable from Telegram,
+and built to be studied and adapted, not only deployed as-is.</p>
+<h2 id="what-this-actually-is">What this actually is</h2>
+<ul>
+<li><strong>A working example, not just a demo.</strong> Clone it, follow one guide, and
+you have a real AI agent answering you on Telegram within an hour,
+running a real local model on your own machine or a rented server.</li>
+<li><strong>A base for learning how the pieces fit together.</strong> Agent orchestration
+(<a href="https://github.com/NousResearch/hermes-agent">Hermes Agent</a>), local
+model serving (<a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> +
+<a href="https://github.com/mostlygeek/llama-swap">llama-swap</a>), and — as
+specced work in this repo progresses — retrieval-augmented generation
+(RAG), model evaluation, and multi-channel routing. Every design
+decision in this repo is written down with its reasoning (see
+<code>docs/ARCHITECTURE.md</code> and the linked issues below), not just the code.</li>
+<li><strong>A starting point to adapt, not a fixed product.</strong> Swap the model, add
+your own documents to search over, wire up a different channel, scale
+it to more than one user — the two reference deployments below are
+meant to be forked and changed, for a personal assistant or an
+enterprise deployment alike.</li>
+</ul>
+<h2 id="who-this-is-for">Who this is for</h2>
+<ul>
+<li>Someone who wants a working AI agent without sending their data to a
+cloud provider.</li>
+<li>Someone learning how an agent, a local model, and a channel (Telegram
+today) actually connect in a real, running system — not just in
+theory.</li>
+<li>Someone who wants a documented starting point to adapt: a different
+model, a company's own documents (RAG), a different channel, more than
+one user.</li>
+</ul>
+<h2 id="how-its-built">How it's built</h2>
+<p><a href="https://github.com/NousResearch/hermes-agent">Hermes Agent</a> (Nous
+Research's open-source, self-hosted AI agent) is wired to <strong>local</strong> LLMs
+served by <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> — no external
+API key, no data sent to a third-party service, everything runs on hardware
+you own or rent. <a href="https://github.com/mostlygeek/llama-swap">llama-swap</a> sits
+between them so you can list more than one model and switch between them
+from inside Hermes, rather than being locked to whatever was configured at
+install time.</p>
+<p>Two complete configurations, independent from each other, <strong>each with both
+a Docker path and a native (no-Docker-at-all) path</strong> for every component:</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Where</th>
+<th>Model serving</th>
+<th>Hermes</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>macOS ARM64</strong></td>
+<td>An Apple Silicon Mac</td>
+<td>native (Metal acceleration) — same either way</td>
+<td>Docker (<code>linux/arm64</code>) <em>or</em> native</td>
+<td><a href="macos-arm64/"><code>macos-arm64/</code></a></td>
+</tr>
+<tr>
+<td><strong>Linux x86-64</strong></td>
+<td>A rented VPS</td>
+<td>Docker (CPU) <em>or</em> native</td>
+<td>Docker (<code>linux/amd64</code>) <em>or</em> native</td>
+<td><a href="linux-x86_64-vps/"><code>linux-x86_64-vps/</code></a></td>
+</tr>
+</tbody>
+</table>
+<p>Both wire Hermes to Telegram (see
+<a href="shared/telegram-setup.md"><code>shared/telegram-setup.md</code></a>), ship one model by
+default — <strong>Meta-Llama-3.1-8B-Instruct</strong> in <code>Q4_K_M</code> (see
+<a href="shared/model-notes.md"><code>shared/model-notes.md</code></a>, and
+<a href="shared/managing-models.md"><code>shared/managing-models.md</code></a> to add more) — and
+default to official <strong>prebuilt binaries</strong> rather than building anything from
+source (see <a href="shared/prebuilt-binaries.md"><code>shared/prebuilt-binaries.md</code></a>).
+The Hermes web dashboard, when enabled, requires a real username/password
+(it refuses to start without one — see each platform's README). Both also
+ship <a href="docker/"><code>ghcr.io/ka8t/hermes</code></a> — the same Hermes, plus two bundled
+skills that let you describe a new agent in plain language and get a
+working profile back (see <a href="shared/managing-models.md"><code>shared/managing-models.md</code></a>
+and <a href="skills/agent-creation/"><code>skills/agent-creation/</code></a>), and an
+enterprise-safe approval default so nothing destructive ever runs without
+an explicit human answer (see
+<a href="shared/enterprise-safety.md"><code>shared/enterprise-safety.md</code></a>).</p>
+<h2 id="how-it-works">How it works</h2>
+<p>Three separate pieces, each with one job, connected through Hermes Agent at
+the center:</p>
+<p><strong>Hermes Agent</strong> is the orchestrator. It holds your conversation memory,
+knows a set of tasks it can perform (its &quot;skills&quot;), and decides what to do
+with every message it receives — but on its own it can neither hear nor
+speak, nor think. It needs two things plugged into it: a gateway to
+receive/send human messages, and a brain (an LLM) to generate its replies
+and decide which tools to call.</p>
+<p><strong>Telegram</strong> is the gateway used here — the channel that lets a human talk
+to Hermes from their phone, rather than needing an SSH/terminal connection
+to the machine running it. Hermes Agent supports several gateways (Discord,
+Slack, email...); Telegram was chosen for this project because it's the
+fastest to set up (one bot token from BotFather, one allow-list of user
+IDs).</p>
+<p><strong>llama.cpp (via llama-swap in front of it)</strong> is the local brain. It's the
+engine that actually runs the language model (loads the GGUF weights,
+generates tokens) and exposes it over an OpenAI-compatible HTTP API. Hermes
+Agent sends it a request every time it needs to &quot;think&quot; — to reply, to
+decide whether to use a tool, or to follow a skill.</p>
+<p>The full path a message takes:</p>
+<pre class="hljs"><code><div>Phone (Telegram)
+  → Telegram Bot API
+    → Hermes Agent's Telegram gateway
+      → Hermes's agent loop (assembles system prompt + skills + tools + history)
+        → HTTP request to llama-swap
+          → llama-server (llama.cpp) generates the reply
+        ← reply (plain text, or a structured tool call)
+      ← Hermes runs the tool if needed, updates its memory
+    ← Telegram gateway sends the final reply
+  ← Telegram Bot API
+Phone (Telegram)
+</div></code></pre>
+<h2 id="why-native-on-mac-but-docker-by-default-on-the-vps">Why native on Mac but Docker by default on the VPS?</h2>
+<p>Docker Desktop for Mac cannot expose the Metal GPU to a container — running
+<code>llama-server</code> inside it would fall back to CPU-only inference. On a Mac,
+llama-swap and the <code>llama-server</code> it spawns therefore always run natively
+(full Metal access), while Hermes itself can go either way (Docker by
+default; native is documented too, see each platform's README). On a
+regular Linux VPS (no dedicated GPU), that distinction doesn't apply —
+Docker Compose is the simpler default for everything, model serving
+included — but a fully native path (no Docker anywhere) is documented as an
+alternative for both platforms, for anyone who'd rather not run Docker at
+all.</p>
+<h2 id="why-these-defaults">Why these defaults?</h2>
+<p>Hermes requires at least 64,000 tokens of context to work properly (memory +
+tools + history are sent on every call), and tool calls only execute with
+llama.cpp's <code>--jinja</code> flag — both easy-to-miss points are explained and
+already handled in both configurations. See
+<a href="shared/model-notes.md"><code>shared/model-notes.md</code></a>. Every binary this repo
+runs is fetched prebuilt rather than compiled, which means trusting each
+project's CI pipeline rather than just its source — a trade-off made
+deliberately, not overlooked; see the &quot;Trust considerations&quot; section of
+<a href="shared/prebuilt-binaries.md"><code>shared/prebuilt-binaries.md</code></a>.</p>
+<h2 id="quick-start">Quick start</h2>
+<pre class="hljs"><code><div>git <span class="hljs-built_in">clone</span> https://github.com/ka8t/Hermes.git
+<span class="hljs-built_in">cd</span> Hermes
+
+<span class="hljs-comment"># On an Apple Silicon Mac</span>
+<span class="hljs-built_in">cd</span> macos-arm64 &amp;&amp; <span class="hljs-built_in">cat</span> README.md
+
+<span class="hljs-comment"># On a Linux x86-64 VPS</span>
+<span class="hljs-built_in">cd</span> linux-x86_64-vps &amp;&amp; <span class="hljs-built_in">cat</span> README.md
+</div></code></pre>
+<h2 id="repository-structure">Repository structure</h2>
+<pre class="hljs"><code><div>Hermes/
+├── macos-arm64/          # native llama-swap + llama.cpp (Metal); Hermes in Docker or native
+│   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
+├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes: Docker Compose or fully native
+│   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
+├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
+├── skills/agent-creation/  # the guided agent-creation skills + starter templates
+├── eval/                 # model/hardware evaluation: BFCL + llama-bench (see shared/model-evaluation.md)
+├── docs/ARCHITECTURE.md  # living system architecture doc, diagrams — kept current on every change
+└── shared/               # platform-independent docs, linked from both guides
+</div></code></pre>
+<ul>
+<li><a href="docs/ARCHITECTURE.md"><code>docs/ARCHITECTURE.md</code></a> — components, deployment topologies, message flow, and what's specced vs. live</li>
+<li><a href="docs/GLOSSARY.md"><code>docs/GLOSSARY.md</code></a> — acronyms and technical terms used across this repo's docs</li>
+<li><a href="shared/telegram-setup.md"><code>shared/telegram-setup.md</code></a> — bot creation, environment variables</li>
+<li><a href="shared/model-notes.md"><code>shared/model-notes.md</code></a> — GGUF model choice, context constraints</li>
+<li><a href="shared/managing-models.md"><code>shared/managing-models.md</code></a> — add / switch / remove models via llama-swap</li>
+<li><a href="shared/prebuilt-binaries.md"><code>shared/prebuilt-binaries.md</code></a> — official binaries used, per platform</li>
+<li><a href="shared/enterprise-safety.md"><code>shared/enterprise-safety.md</code></a> — the approvals default, and what it doesn't cover</li>
+<li><a href="shared/multi-user-agents.md"><code>shared/multi-user-agents.md</code></a> — one Hermes profile per user, onboarding, current platform coverage</li>
+<li><a href="shared/cloudflare-tunnel-setup.md"><code>shared/cloudflare-tunnel-setup.md</code></a> — public HTTPS exposure for WhatsApp/Teams (unverified — see <a href="https://github.com/ka8t/Hermes/issues/16">#16</a>)</li>
+<li><a href="shared/whatsapp-setup.md"><code>shared/whatsapp-setup.md</code></a> — WhatsApp Business Cloud API channel (unverified)</li>
+<li><a href="shared/teams-setup.md"><code>shared/teams-setup.md</code></a> — Microsoft Teams channel (unverified)</li>
+<li><a href="shared/hardware-sizing.md"><code>shared/hardware-sizing.md</code></a> — check your real CPU/RAM/GPU before trusting this repo's documented performance numbers</li>
+<li><a href="shared/gpu-setup.md"><code>shared/gpu-setup.md</code></a> — optional NVIDIA/AMD/Intel GPU support for the Linux VPS path (implemented, not live-verified — see <a href="https://github.com/ka8t/Hermes/issues/13">#13</a>)</li>
+<li><a href="shared/model-evaluation.md"><code>shared/model-evaluation.md</code></a> — BFCL (tool-calling reliability, <code>eval/</code>) and <code>llama-bench</code> (throughput, specced only) evaluation (see <a href="https://github.com/ka8t/Hermes/issues/28">#28</a>). Real BFCL v4 scores for the default model on this Mac (M1, Metal): <strong>54.75%</strong> on <code>simple_python</code> (400/400 cases), <strong>52.50%</strong> on <code>parallel</code> (200/200) — <code>multi_turn</code> categories not yet
+completed, see <a href="shared/model-evaluation.md#model-evaluation-bfcl-29"><code>shared/model-evaluation.md</code></a> for why.</li>
+<li><a href="shared/model-comparison.md"><code>shared/model-comparison.md</code></a> — <code>/compare</code>, an in-channel command to ask several models the same question side by side (specced, not yet implemented — see <a href="https://github.com/ka8t/Hermes/issues/39">#39</a>)</li>
+</ul>
+<h2 id="security">Security</h2>
+<p>No secrets are committed: <code>.env</code> is git-ignored (only <code>.env.example</code> files
+are tracked), as is any <code>.gguf</code> model (too large) and Hermes's persistent
+state (<code>data/</code>, including memory, sessions, and the generated <code>config.yaml</code>
+/ <code>models.yaml</code>). See <code>.gitignore</code>. Back up <code>data/</code> with <code>hermes backup</code>
+before anything risky — see each platform's &quot;Common operations&quot;.</p>
+<h2 id="sources">Sources</h2>
+<ul>
+<li>Hermes Agent — official repository: https://github.com/NousResearch/hermes-agent</li>
+<li>Official documentation: https://hermes-agent.nousresearch.com/docs/</li>
+<li>llama.cpp — official repository: https://github.com/ggml-org/llama.cpp</li>
+<li>llama-swap — official repository: https://github.com/mostlygeek/llama-swap</li>
+</ul>
+
+</body>
+</html>

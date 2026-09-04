@@ -1,0 +1,38 @@
+{
+  "languages": [
+    "html",
+    "javascript",
+    "python",
+    "yaml"
+  ],
+  "paths": {
+    "exclude": [
+      "**/node_modules/**",
+      "**/__pycache__/**",
+      "**/.venv/**",
+      "**/venv/**",
+      "**/vendor/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.tox/**",
+      "**/.mypy_cache/**",
+      "**/.pytest_cache/**",
+      "**/.hermes/**",
+      "**/data/**",
+      "**/data.bak.*/**",
+      "**/models/**",
+      "eval/bfcl-workspace/**"
+    ],
+    "include": [
+      ".",
+      "docker/",
+      "eval/",
+      "linux-x86_64-vps/",
+      "macos-arm64/"
+    ]
+  },
+  "project": {
+    "name": "Hermes"
+  }
+}
