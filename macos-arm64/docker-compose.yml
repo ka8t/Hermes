@@ -1,6 +1,15 @@
 services:
   hermes:
     image: ghcr.io/ka8t/hermes:latest
+    # Only used when you `docker compose build`/`up --build`/`watch` — a
+    # plain `docker compose up` still just pulls the tag above. Lets local
+    # edits to this repo's own Dockerfile additions (skills, the web_search
+    # schema patch, the approvals default) rebuild without a separate
+    # `docker build` command. Build context is the repo root, matching
+    # docker/Dockerfile's own COPY paths (see its header comment).
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     platform: linux/arm64
     container_name: hermes
     restart: unless-stopped
@@ -16,6 +25,28 @@ services:
       # Docker Desktop for Mac already resolves this on its own; this line
       # keeps the file portable if you ever run it on native Linux Docker.
       - "host.docker.internal:host-gateway"
+    develop:
+      # `docker compose watch` — see ../shared for nothing (this is
+      # dev-only, not part of a deployed guide). Skills are re-synced from
+      # /opt/hermes/skills into the live /opt/data/skills on every
+      # container start (the base image's own s6-overlay boot hook,
+      # skills_sync.py — see docker/Dockerfile's comment), so syncing a
+      # skill edit straight to that path and restarting the process is
+      # enough: no image rebuild needed for skill changes. Anything that
+      # changes what actually gets baked into the image (the Dockerfile
+      # itself: the web_search schema patch, the approvals default,
+      # different COPY paths) has no such live-reload path and needs a
+      # real rebuild — `watch` triggers that automatically too, instead of
+      # a manual `docker build && docker compose up -d --force-recreate`.
+      watch:
+        - path: ../skills/agent-creation
+          target: /opt/hermes/skills/ka8t-hermes/agent-creation
+          action: sync+restart
+        - path: ../skills/reliability
+          target: /opt/hermes/skills/ka8t-hermes/reliability
+          action: sync+restart
+        - path: ../docker/Dockerfile
+          action: rebuild
 
 # NB: llama-swap / llama-server are intentionally NOT here — they run
 # natively on the Mac (scripts/run-llama-swap.sh) to keep Metal GPU

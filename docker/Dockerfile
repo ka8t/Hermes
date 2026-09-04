@@ -23,6 +23,22 @@ FROM nousresearch/hermes-agent:latest
 COPY skills/agent-creation /opt/hermes/skills/ka8t-hermes/agent-creation
 COPY skills/reliability /opt/hermes/skills/ka8t-hermes/reliability
 
+# --- web_search schema fix (#50) ---
+# llama-server's tool-call validation only accepts a schema's *required*
+# properties, silently rejecting any call that includes a declared
+# *optional* one — confirmed upstream bug, filed at
+# https://github.com/ggml-org/llama.cpp/issues/28340. The base image's
+# own web_search tool declares "limit" as optional (only "query" is
+# required), and the model routinely includes "limit" anyway (its
+# description invites it: "Defaults to 5"), so every such call was
+# rejected with a 500 — confirmed live, deterministically, including as
+# this model's very first move on issue #37's regression prompt. Making
+# "limit" required sidesteps the llama-server bug entirely: grammar-
+# constrained decoding then always includes it, which llama-server
+# always accepts. See shared/model-notes.md.
+RUN sed -i 's/"required": \["query"\]/"required": ["query", "limit"]/' \
+    /opt/hermes/tools/web_tools.py
+
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
 # base image's first-boot seed copies verbatim into a fresh deployment's

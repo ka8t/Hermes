@@ -180,6 +180,17 @@ docker compose exec hermes hermes backup -o /opt/data/backup-$(date +%Y%m%d).tar
 docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 ```
 
+### Iterating on `docker/Dockerfile`'s additions without a manual rebuild
+
+If you're editing `../skills/agent-creation`, `../skills/reliability`, or
+`../docker/Dockerfile` itself (the web_search schema patch, the approvals
+default), run `docker compose watch` instead of `docker compose up -d` — it
+picks up a skill edit by syncing it straight into the container and
+restarting the Hermes process (no rebuild: the base image already
+re-syncs skills into `/opt/data/skills` on every start), and rebuilds the
+image automatically if the Dockerfile itself changes. See
+[`docker-compose.yml`](docker-compose.yml)'s `develop.watch` block.
+
 ## Native alternative (no Docker at all)
 
 Everything above already runs `llama-server`/llama-swap natively — the only
