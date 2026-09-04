@@ -8,11 +8,11 @@ this page is a quick-lookup summary for skimming or coming back later.
 
 Alphabetical.
 
-[A](#api) · [B](#bfcl) · [C](#cli) · [G](#gguf) · [H](#http--https) ·
-[J](#json) · [K](#kv-cache) · [L](#llm) · [M](#model-handler) ·
-[P](#prefill) · [Q](#quantization) · [R](#rag) · [S](#skill-hermes) ·
-[T](#token--tokens-per-second-toks) · [U](#url) · [V](#vps) ·
-[W](#waba) · [Y](#yaml)
+[A](#api) · [B](#bfcl) · [C](#cli) · D · E · F · [G](#gguf) ·
+[H](#http--https) · I · [J](#json) · [K](#kv-cache) · [L](#llm) · [M](#model-handler)
+
+N · O · [P](#prefill) · [Q](#quantization) · [R](#rag) · [S](#skill-hermes) ·
+[T](#token--tokens-per-second-toks) · [U](#url) · [V](#vps) · [W](#waba) · X · [Y](#yaml) · Z
 
 ## API
 Application Programming Interface — a defined way for one piece of
