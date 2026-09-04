@@ -24,20 +24,27 @@ COPY skills/agent-creation /opt/hermes/skills/ka8t-hermes/agent-creation
 COPY skills/reliability /opt/hermes/skills/ka8t-hermes/reliability
 
 # --- web_search schema fix (#50) ---
-# llama-server's tool-call validation only accepts a schema's *required*
-# properties, silently rejecting any call that includes a declared
-# *optional* one — confirmed upstream bug, filed at
-# https://github.com/ggml-org/llama.cpp/issues/28340. The base image's
-# own web_search tool declares "limit" as optional (only "query" is
-# required), and the model routinely includes "limit" anyway (its
-# description invites it: "Defaults to 5"), so every such call was
-# rejected with a 500 — confirmed live, deterministically, including as
-# this model's very first move on issue #37's regression prompt. Making
-# "limit" required sidesteps the llama-server bug entirely: grammar-
-# constrained decoding then always includes it, which llama-server
-# always accepts. See shared/model-notes.md.
-RUN sed -i 's/"required": \["query"\]/"required": ["query", "limit"]/' \
-    /opt/hermes/tools/web_tools.py
+# llama-server has hardcoded, name-based special handling for any tool
+# literally called "web_search": it validates the call against its own
+# internal query-only contract regardless of what schema the client (us)
+# actually declares for that name — confirmed directly via `strings` on
+# the compiled llama-server binary (contains both the literal string
+# "web_search" and the generic JSON-schema-validator error vocabulary
+# right next to it), and via direct A/B testing against the live server
+# (identical schema, different tool name: succeeds; "web_search" name,
+# any second property: rejected, regardless of required/optional). An
+# earlier attempt at this fix — making "limit" required instead of
+# optional — did NOT work, because the collision is on the tool *name*,
+# not on which properties are required; corrected here. Renaming the
+# tool itself was considered and rejected: several of the base image's
+# own bundled skills instruct the model to call "web_search" by that
+# exact name, and renaming would silently break all of them. Removing
+# "limit" from the schema entirely keeps the name and the default
+# 5-result behavior, just without the model's ability to request a
+# different count. See shared/model-notes.md and
+# docker/patch-web-search-schema.py for the exact patch.
+COPY docker/patch-web-search-schema.py /tmp/patch-web-search-schema.py
+RUN python3 /tmp/patch-web-search-schema.py && rm /tmp/patch-web-search-schema.py
 
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
