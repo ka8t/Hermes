@@ -422,6 +422,47 @@ summaries too, not just directly-visible tool results (untested; a
 candidate follow-up, not assumed to work without testing it the same
 way the original fix was tested before shipping).
 
+**That candidate follow-up was tried and tested live (2026-09-04) —
+mixed result, decided not to pursue further.** Appended two more
+sentences to the running container's `SOUL.md`: (1) a skill category
+name (a folder like `autonomous-ai-agents/`) is not a skill name, use
+`skills_list` first; (2) a delegation's "completed" status means the
+process finished, not that the task succeeded — check the actual result
+content. Two `hermes -z` test runs with the same #37 prompt:
+
+- Run 1 was lost to this environment's recurring background-process
+  tracking issue before reaching a conclusion (inconclusive, not a
+  model-behavior data point).
+- Run 2 completed cleanly. It did **not** repeat the literal
+  `skill_view('autonomous-ai-agents')` mistake — used `skills_list`
+  first, as intended. But it never dispatched a delegation at all, so
+  the delegation-trust half of the fix got **zero test coverage** from
+  this run. And it produced a **third, previously undocumented**
+  goal-drift shape: it settled on and confidently described an
+  entirely unrelated skill (`blocked-page-recovery` — for recovering
+  paywalled/blocked web pages) as if it were relevant, never
+  addressing the actual request at all.
+
+**Decision: stop iterating on `SOUL.md` micro-patches for this class of
+problem.** One narrow symptom (the literal category-as-skill-name
+mistake) plausibly improved; the other (delegation trust) is untested;
+and a new, different drift shape appeared in the same single run. This
+is the expected shape of diminishing returns from patching individual
+observed failure modes one at a time on a model with a general
+tool-selection reliability gap — each fix narrows one specific
+symptom without addressing the underlying capability limitation, and
+the model finds another way to drift. Consistent with #37/#48's own
+original framing: **the durable fix is model verification/selection
+(#28-#32), not further prompt engineering.** Next step: evaluate
+switching the default model (candidate:
+`Llama-3-Groq-8B-Tool-Use`, same size class, ~89% published BFCL score
+vs. this deployment's own measured 54.75%/52.50% on the current
+default) rather than continuing to chase individual symptoms.
+The extended `SOUL.md` instruction is left live on this Mac's test
+container (harmless, plausibly still helps the one narrow case) but was
+**not** committed to `docker/Dockerfile`/`docker/SOUL.md` — not
+validated enough to ship as a change to every deployment.
+
 **Root cause of the `web_search` failure — corrected twice, now fixed
 for real (2026-09-04, issue #50).** Two earlier hypotheses were both
 wrong, each caught by actually testing rather than trusting the
