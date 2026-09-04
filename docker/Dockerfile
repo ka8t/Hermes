@@ -14,8 +14,10 @@
 FROM nousresearch/hermes-agent:latest
 
 # --- Bundled skills (see ../skills/agent-creation, ../skills/reliability) ---
-# ../skills/reliability holds two skills: verify-before-success (#49) and
-# web-search-query-only (#50, a confirmed llama-server bug workaround).
+# ../skills/reliability holds verify-before-success (#49) — discretionary,
+# skill-indexed, found live-testing to be an insufficient fix on its own
+# for #48's hallucinated-success failure (kept as a secondary nudge; see
+# the always-injected SOUL.md fix below for the actual correction).
 # Synced into every deployment's live skills directory automatically by the
 # base image's own boot sequence (docker/stage2-hook.sh's skills_sync.py,
 # confirmed by inspecting nousresearch/hermes-agent:latest) — nothing else
@@ -45,6 +47,23 @@ COPY skills/reliability /opt/hermes/skills/ka8t-hermes/reliability
 # docker/patch-web-search-schema.py for the exact patch.
 COPY docker/patch-web-search-schema.py /tmp/patch-web-search-schema.py
 RUN python3 /tmp/patch-web-search-schema.py && rm /tmp/patch-web-search-schema.py
+
+# --- Verify-before-success, as a mandatory identity instruction (#48) ---
+# The discretionary skill above (verify-before-success, #49) was tested
+# live and found insufficient: the model doesn't reliably choose to
+# consult it before writing a final summary. This appends to
+# docker/SOUL.md instead — the base image's own always-injected identity
+# file (copied verbatim into every fresh deployment's SOUL.md by the
+# first-boot seed, same mechanism as the approvals default below, and
+# unlike a skill, never skill-gated or discretionary). Verified live,
+# 2026-09-04: 2/2 test runs of eval/regression-hallucinated-success.sh
+# with this instruction produced an honest failure report instead of the
+# false-success pattern seen in 2/2 runs without it. Small sample (see
+# #37's own 4/6 variance finding for why this isn't proof of 100%
+# reliability) but a real, consistent, positive signal — see
+# shared/model-notes.md's #48 section.
+RUN printf '\n\nBefore sending any message that states or implies a task succeeded, completed, or was created/saved/updated — list the tool calls that outcome depends on and check each one'"'"'s actual result field, not its intended purpose. If any of them returned an error or success:false, say so plainly and name what failed; never describe a failed tool call in the past tense as something that worked. A well-written, confident summary of a failed attempt is still a false report.' \
+    >> /opt/hermes/docker/SOUL.md
 
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the

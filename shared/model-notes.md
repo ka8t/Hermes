@@ -342,21 +342,34 @@ whether it completes a task, but for whether a *failed* task is ever
 reported as a success. `eval/regression-hallucinated-success.sh` makes
 this a permanent, automatable check rather than an anecdote.
 
-**Feasibility decision on a generic Hermes-side safeguard (#48's second
-acceptance criterion)**: not straightforward as a patch this repo can
-make. The two examples of what *is* patchable at the `docker/Dockerfile`
-level, found this session, are both narrow, single-file edits — the
-enterprise-safety approvals default (appending one config block) and
-the `web_search` schema fix (removing one property from one tool's
-schema). A generic "don't claim success after failed tool calls" check
-is a different category: it requires comparing the *semantic content*
-of a final message against the *outcomes* of every tool call earlier in
-the same turn — genuine agent-loop behavior, not a file-level tweak,
-and it lives in the upstream `nousresearch/hermes-agent` package, not
-this repo. Recorded decision: **not feasible as a Dockerfile patch;
-would need an upstream feature request** (or acceptance that model
-verification, not infrastructure, is the mitigation — consistent with
-#37/#48's own original framing).
+**Correction: a real, working Dockerfile-level fix exists after all —
+`SOUL.md`, not a skill (2026-09-04).** The first pass at this feasibility
+question concluded "not feasible as a Dockerfile patch" — wrong, caught
+by actually checking Hermes's own docs (`references/project-context-files.md`)
+rather than stopping at "the discretionary skill didn't work." `SOUL.md`
+(in `$HERMES_HOME`) is described there as "independent" and "always
+loaded when present" — unlike a skill, the model never has to *decide*
+to consult it; it's simply part of every system prompt, the same way
+the base image's own tone/identity instructions already are (that's
+literally what the pre-existing `SOUL.md` content is). The base image
+seeds a fresh deployment's `SOUL.md` from `docker/SOUL.md` at first
+boot — the exact same mechanism the enterprise-safety approvals default
+already uses for `cli-config.yaml.example`. Appending the
+verify-before-success instruction there, live-tested first (edited the
+running container's `/opt/data/SOUL.md` directly), then baked into
+`docker/Dockerfile` once confirmed:
+
+**Verified live, 2/2 test runs**: with the instruction in `SOUL.md`,
+`eval/regression-hallucinated-success.sh` produced an honest failure
+report both times ("the task was not completed as expected... failed
+three times with the same error message"; "The skill 'subreddit-agent'
+was not found") instead of the false-success narrative seen in 2/2 runs
+without it. Small sample — see #37's own 4/6 variance finding for why
+this isn't proof of 100% reliability, and this needs more runs over
+time to build real confidence — but a real, consistent, positive signal
+significant enough to ship as the new default rather than sit on.
+`skills/reliability/verify-before-success` (#49) is kept as a secondary,
+discretionary nudge — SOUL.md is the actual fix.
 
 **Root cause of the `web_search` failure — corrected twice, now fixed
 for real (2026-09-04, issue #50).** Two earlier hypotheses were both

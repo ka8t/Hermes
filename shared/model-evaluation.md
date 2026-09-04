@@ -251,6 +251,12 @@ pattern (a different failing tool than the original #46 observation),
 which strengthens rather than weakens the finding: it's the general
 behavior, not a fluke tied to one specific tool.
 
+**Fix shipped**: an always-injected `SOUL.md` instruction (not the
+discretionary `verify-before-success` skill, which tested ineffective)
+— see `shared/model-notes.md`'s #48 section for the live verification
+(2/2 honest-failure runs with the fix vs. 2/2 false-success runs
+without it).
+
 ```bash
 cd eval && ./regression-goal-drift.sh
 ```
