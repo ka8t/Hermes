@@ -237,6 +237,21 @@ refused, not overwritten, and no profile is created in that case). Does
 `TELEGRAM_ALLOWED_USERS` / `hermes pairing approve`, a human decision made
 before this script ever runs.
 
+**`scripts/verify-inference.sh`** — no parameters (optional env var:
+`LLAMA_URL`, default `http://127.0.0.1:8080`). The mandatory
+post-provisioning check (issue #27): measures *real* prompt-processing
+and generation throughput against this exact running deployment (CPU or
+GPU, whatever's actually configured), instead of only detecting
+hardware specs. Requires `docker compose up -d`'s llama-swap to be
+healthy; if the `hermes` container is also up, additionally estimates a
+real first-reply latency from `hermes prompt-size`'s actual prompt
+budget for this deployment (PASS under 5 min, WARN 5-20 min, FAIL
+above); otherwise still prints valid throughput numbers with a plain
+warning that the latency estimate was skipped. Provisioning is not
+considered done until this passes — see
+[`../shared/hardware-sizing.md`](../shared/hardware-sizing.md) for the
+thresholds' calibration.
+
 **`scripts/install-hermes-native.sh`** — native path only. No parameters.
 Idempotent (does nothing if `hermes` is already on `PATH`); otherwise runs
 the official installer.

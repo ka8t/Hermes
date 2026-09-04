@@ -280,6 +280,19 @@ Keeps running in the foreground, bound to `127.0.0.1` — install as a
 `launchd` service with `scripts/com.hermes.llama-swap.plist.example` to run
 it unattended.
 
+**`scripts/verify-inference.sh`** — no parameters (optional env var:
+`LLAMA_URL`, default `http://127.0.0.1:8080`). The mandatory
+post-provisioning check (issue #27): measures *real* prompt-processing
+and generation throughput against this exact running deployment,
+instead of only detecting hardware specs. Requires llama-swap up; Hermes
+running (Docker or native) is optional — if it's up, also estimates a
+real first-reply latency from `hermes prompt-size`'s actual prompt
+budget for this deployment (PASS under 5 min, WARN 5-20 min, FAIL
+above); if Hermes isn't up, still prints valid throughput numbers with
+a plain warning that the latency estimate was skipped. See
+[`shared/hardware-sizing.md`](../shared/hardware-sizing.md) for the
+thresholds' calibration.
+
 **`scripts/install-hermes-native.sh`** — native-Hermes path only. No
 parameters. Idempotent (does nothing if `hermes` is already on `PATH`);
 otherwise runs the official installer.
