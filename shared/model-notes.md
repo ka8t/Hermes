@@ -487,7 +487,7 @@ literally called `"web_search"`** — it validates the call against its
 own internal query-only contract regardless of what schema the client
 (Hermes) actually declares for that name.
 - `strings` on the compiled `llama-server` binary
-  (`/Users/mac/Documents/Code/llama.cpp/build/bin/llama-server`, version
+  (`<llama.cpp checkout>/build/bin/llama-server`, version
   8121/a0c91e8f9) contains both the literal string `web_search` and the
   generic JSON-schema-validator error vocabulary
   (`must only have these properties:`, `is missing property:`, etc.) —
