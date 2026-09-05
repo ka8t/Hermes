@@ -55,7 +55,12 @@ case "${LLAMA_SWAP_HOST}" in
 esac
 
 echo "==> Running BFCL in Docker: model=${MODEL} categories=${CATEGORIES} (via proxy -> ${REAL_MODEL_ID})"
+# hermes-eval-bfcl defaults to a fixed non-root UID (see Dockerfile, issue
+# #57); --user overrides that to the invoking host user so writes into the
+# host-owned bfcl-workspace/ bind mount below don't hit an EACCES from a
+# UID mismatch.
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   --add-host=host.docker.internal:host-gateway \
   -v "${WORKSPACE_DIR}:/workspace" \
   -e UPSTREAM_HOST="${UPSTREAM_HOST}" \

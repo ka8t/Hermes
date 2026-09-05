@@ -61,6 +61,34 @@ Everything else — `.env`, `config.yaml`, `models.yaml`, the verification
 steps — is exactly what's documented in this repo's two platform guides.
 This image changes what's *inside* Hermes, not how you run or connect it.
 
+## Running as a non-root user (matching your host UID)
+
+The base image already runs the actual Hermes process as a non-root
+`hermes` user internally — `docker inspect` shows `User: root` only
+because s6-overlay (the base image's process supervisor) needs root to
+bootstrap PID 1, not because the running agent is root. See [issue
+#57](https://github.com/ka8t/Hermes/issues/57) for the full
+investigation.
+
+Do **not** use `docker run --user <uid>:<gid>` (or a Compose `user:`
+key) to align container-written files with your host user — it breaks
+the s6-overlay bootstrap (`EACCES` on startup). Instead, pass your host
+UID/GID as environment variables and let the image remap its internal
+`hermes` user to match:
+
+```yaml
+services:
+  hermes:
+    image: ghcr.io/ka8t/hermes:latest
+    environment:
+      - HERMES_UID=1000   # or $(id -u) on the host
+      - HERMES_GID=1000   # or $(id -g) on the host
+    # ...
+```
+
+NAS platforms (Synology, unRAID, UGOS) can use the `PUID`/`PGID`
+aliases instead, matching the LinuxServer.io convention.
+
 ## Building it yourself
 
 ```bash

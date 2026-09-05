@@ -34,4 +34,11 @@ WORKDIR /eval
 COPY model_alias_proxy.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
+# Non-root by default (issue #57). Fixed UID/GID so a bare `docker run
+# hermes-eval-bfcl` (no bind mount) still starts unprivileged; run-bfcl.sh
+# overrides this via `--user "$(id -u):$(id -g)"` so writes into the
+# host-owned bfcl-workspace/ bind mount don't hit a UID mismatch.
+RUN useradd -m -u 1000 evaluser
+USER evaluser
+
 ENTRYPOINT ["./entrypoint.sh"]

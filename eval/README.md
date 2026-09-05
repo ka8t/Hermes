@@ -57,7 +57,11 @@ inside the `hermes-eval-bfcl` container (`docker run`, bind-mounting
 `$BFCL_CATEGORIES` (default `simple_python,parallel,multi_turn` — note
 `simple_python`, not `simple`: `bfcl-eval` renamed this category
 upstream, see `shared/model-evaluation.md`). Requires `setup-bfcl.sh` to
-have run first and a reachable llama-swap.
+have run first and a reachable llama-swap. The container runs as a
+non-root user by default (issue #57); this script passes
+`--user "$(id -u):$(id -g)"` so its writes into the host-owned
+`bfcl-workspace/` bind mount match your own UID instead of the image's
+fixed default one.
 
 **`Dockerfile`** — not a script; the image `setup-bfcl.sh` builds and
 `run-bfcl.sh` runs. `FROM python:3.11-slim`, installs `curl` (needed by
