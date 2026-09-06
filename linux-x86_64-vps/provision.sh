@@ -90,3 +90,93 @@ echo "     HERMES_DASHBOARD_BASIC_AUTH_USERNAME/_PASSWORD — see ../shared/tele
 echo "  2. docker compose up -d"
 echo "  3. docker compose logs -f llama-swap   # wait for it to report healthy"
 echo "  4. docker compose exec hermes hermes gateway setup   # once, for Telegram"
+
+# Everything below is interactive-only (issue #61, part of #59) — orchestrates
+# the remaining steps this script has always printed above instead of just
+# describing them. Left OFF entirely when this script is piped (e.g. the
+# documented `curl -fsSL .../provision.sh | bash` one-liner), since stdin
+# isn't a terminal to prompt against there and the printed instructions above
+# are the only sane output for that path — unchanged from before this issue.
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+  exit 0
+fi
+
+echo ""
+read -r -p "Continue with guided setup now (dashboard credentials, start Hermes, connect Telegram)? [Y/n] " CONTINUE_REPLY
+case "${CONTINUE_REPLY}" in
+  [nN]*) exit 0 ;;
+esac
+
+echo ""
+echo "==> Dashboard credentials protect the web UI (http://<vps-ip>:9119) from"
+echo "    anyone who can reach the port."
+./scripts/configure-env.sh
+
+echo ""
+echo "==> Starting Hermes and llama-swap."
+docker compose up -d
+
+echo ""
+echo "==> Waiting for llama-swap to report healthy (loads the model into memory —"
+echo "    can take a minute or two, but is NOT the slow part; that's the first reply)."
+for _ in $(seq 1 60); do
+  STATUS="$(docker compose ps --format '{{.Health}}' llama-swap 2>/dev/null || true)"
+  if [ "${STATUS}" = "healthy" ]; then
+    echo "==> llama-swap is healthy."
+    break
+  fi
+  sleep 5
+done
+
+echo ""
+read -r -p "Connect Telegram now (hermes gateway setup)? [Y/n] " TELEGRAM_REPLY
+case "${TELEGRAM_REPLY}" in
+  [nN]*) ;;
+  *)
+    echo "==> This is hermes-agent's own setup wizard — it will ask for your bot"
+    echo "    token and Telegram user ID. See ../shared/telegram-setup.md if you"
+    echo "    don't have a bot yet."
+    docker compose exec hermes hermes gateway setup
+    ;;
+esac
+
+echo ""
+read -r -p "Run the mandatory real-inference-throughput check now? [Y/n] " VERIFY_REPLY
+case "${VERIFY_REPLY}" in
+  [nN]*) ;;
+  *)
+    echo "==> Hardware specs alone don't predict real speed — this measures it"
+    echo "    directly against this exact deployment. See ../shared/hardware-sizing.md."
+    ./scripts/verify-inference.sh
+    ;;
+esac
+
+echo ""
+if systemctl is-enabled silent-failure-watchdog.timer >/dev/null 2>&1; then
+  echo "==> Silent-failure watchdog already installed and enabled — skipping."
+else
+  read -r -p "Install the silent-failure watchdog (recommended, issue #56)? [Y/n] " WATCHDOG_REPLY
+  case "${WATCHDOG_REPLY}" in
+    [nN]*) ;;
+    *)
+      echo "==> hermes-agent's own tool-calling loop can occasionally leave a"
+      echo "    message with no reply at all. This runs a periodic check that"
+      echo "    notices and tells the affected user, instead of leaving them"
+      echo "    guessing whether anything went wrong."
+      REPO_PATH="$(cd .. && pwd)/linux-x86_64-vps"
+      sed "s|REPLACE_WITH_REPO_PATH|${REPO_PATH}|g" scripts/silent-failure-watchdog.service.example \
+        > /etc/systemd/system/silent-failure-watchdog.service
+      cp scripts/silent-failure-watchdog.timer.example /etc/systemd/system/silent-failure-watchdog.timer
+      systemctl daemon-reload
+      systemctl enable --now silent-failure-watchdog.timer
+      echo "==> Watchdog installed and running."
+      ;;
+  esac
+fi
+
+echo ""
+echo "==> Setup complete. Try it now:"
+echo "    Send your Telegram bot: \"Create an agent that watches a subreddit"
+echo "    for AI news and messages me when something important comes up.\""
+echo "    On this VPS's CPU, the first reply can take 25-40+ minutes — see"
+echo "    ../shared/telegram-setup.md if you want to know why."
