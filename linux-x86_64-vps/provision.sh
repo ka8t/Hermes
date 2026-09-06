@@ -174,9 +174,4 @@ else
   esac
 fi
 
-echo ""
-echo "==> Setup complete. Try it now:"
-echo "    Send your Telegram bot: \"Create an agent that watches a subreddit"
-echo "    for AI news and messages me when something important comes up.\""
-echo "    On this VPS's CPU, the first reply can take 25-40+ minutes — see"
-echo "    ../shared/telegram-setup.md if you want to know why."
+./scripts/guided-demo.sh
