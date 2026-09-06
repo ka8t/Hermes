@@ -66,20 +66,29 @@ for session_id, chat_id, ended_at in cur.fetchall():
 print(f"__MAX_ENDED__\t{max_ended}", file=sys.stderr)
 '
 
+# A fixed shared path here (e.g. plain /tmp/silent-failure-watchdog.stderr)
+# broke on the VPS: one invocation (interactive, as an unprivileged user)
+# created it, then systemd's own run (as root) couldn't reuse that same
+# path — a real permission conflict, found live-testing the systemd timer.
+# A fresh, uniquely-named file per invocation sidesteps that entirely and
+# also makes concurrent runs safe.
+STDERR_CAPTURE="$(mktemp)"
+trap 'rm -f "${STDERR_CAPTURE}"' EXIT
+
 case "${HERMES_MODE}" in
   docker)
     if ! docker exec "${HERMES_CONTAINER}" true 2>/dev/null; then
       echo "Docker container '${HERMES_CONTAINER}' not reachable — set \$HERMES_CONTAINER or start it." >&2
       exit 2
     fi
-    RESULT="$(docker exec "${HERMES_CONTAINER}" python3 -c "${QUERY}" /opt/data/state.db "${LAST_CHECKED}" 2>/tmp/silent-failure-watchdog.stderr)"
+    RESULT="$(docker exec "${HERMES_CONTAINER}" python3 -c "${QUERY}" /opt/data/state.db "${LAST_CHECKED}" 2>"${STDERR_CAPTURE}")"
     ;;
   native)
     if [ ! -f "${HERMES_HOME}/state.db" ]; then
       echo "${HERMES_HOME}/state.db not found — has the gateway ever run? (\$HERMES_HOME=${HERMES_HOME})" >&2
       exit 2
     fi
-    RESULT="$(python3 -c "${QUERY}" "${HERMES_HOME}/state.db" "${LAST_CHECKED}" 2>/tmp/silent-failure-watchdog.stderr)"
+    RESULT="$(python3 -c "${QUERY}" "${HERMES_HOME}/state.db" "${LAST_CHECKED}" 2>"${STDERR_CAPTURE}")"
     ;;
   *)
     echo "Unknown \$HERMES_MODE '${HERMES_MODE}' — expected 'docker' or 'native'." >&2
@@ -87,7 +96,7 @@ case "${HERMES_MODE}" in
     ;;
 esac
 
-NEW_MAX="$(grep "^__MAX_ENDED__" /tmp/silent-failure-watchdog.stderr | cut -f2)"
+NEW_MAX="$(grep "^__MAX_ENDED__" "${STDERR_CAPTURE}" | cut -f2)"
 [ -n "${NEW_MAX}" ] && echo "${NEW_MAX}" > "${MARKER_FILE}"
 
 TELEGRAM_BOT_TOKEN="$(grep "^TELEGRAM_BOT_TOKEN=" "${PLATFORM_DIR}/.env" 2>/dev/null | cut -d= -f2-)"
