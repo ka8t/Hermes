@@ -50,13 +50,22 @@ services:
   # otherwise) over public HTTPS hostnames, for channels that need
   # Meta/Microsoft to reach them — WhatsApp Business Cloud API (port 8090)
   # and Microsoft Teams (port 3978), each its own listener, not a shared
-  # one. Telegram needs none of this (it polls outbound). Only starts doing
-  # anything once CLOUDFLARE_TUNNEL_TOKEN is set in .env — see
+  # one. Telegram needs none of this (it polls outbound).
+  #
+  # Gated behind the "cloudflare" Compose profile — NOT started by a plain
+  # `docker compose up -d`. Found live, 2026-09-06: this service used to
+  # start unconditionally with `restart: unless-stopped`, and without a
+  # real CLOUDFLARE_TUNNEL_TOKEN, `cloudflared tunnel run --token ""` fails
+  # immediately and gets restarted forever — a real, silent crash-loop on
+  # any Telegram-only deployment (the common case), not the harmless no-op
+  # the old comment here claimed. Activate by setting BOTH
+  # CLOUDFLARE_TUNNEL_TOKEN and `COMPOSE_PROFILES=cloudflare` in .env — see
   # ../shared/cloudflare-tunnel-setup.md.
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
+    profiles: ["cloudflare"]
     command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     env_file:
       - .env

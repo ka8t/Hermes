@@ -68,17 +68,24 @@ the local service as HTTPS.
 
 ## 3. Start it
 
+`cloudflared` is gated behind Compose's `cloudflare` profile — a plain
+`docker compose up -d` never starts it, on purpose (found live,
+2026-09-06: it used to start unconditionally, crash-looping forever on any
+Telegram-only deployment that never touches this file at all). Add
+`COMPOSE_PROFILES=cloudflare` to `.env` alongside `CLOUDFLARE_TUNNEL_TOKEN`
+from step 1, then:
+
 ```bash
-docker compose up -d cloudflared
+docker compose up -d
 docker compose logs -f cloudflared
 ```
 
 Look for a line confirming registered connections (four, by default —
 Cloudflare's connector maintains several for redundancy).
 
-**If `CLOUDFLARE_TUNNEL_TOKEN` is left empty**, this container crash-loops
-(`restart: unless-stopped` keeps retrying) rather than silently doing
-nothing — expected until you complete step 1, not a bug to chase.
+**If `CLOUDFLARE_TUNNEL_TOKEN` is left empty but `COMPOSE_PROFILES=cloudflare`
+is set anyway**, this container still crash-loops (`restart: unless-stopped`
+keeps retrying) — finish step 1 first.
 
 ## Verify
 
