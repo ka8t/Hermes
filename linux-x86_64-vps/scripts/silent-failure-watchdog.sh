@@ -18,6 +18,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM_DIR="$(dirname "${SCRIPT_DIR}")"
 
+# systemd (Type=oneshot, no User=) runs services with $HOME unset — unlike
+# an interactive shell, it doesn't source a profile. Found live-testing this
+# on the VPS: the script crashed on `set -u` before ever querying state.db.
+# Resolve it ourselves so the script works the same whether invoked
+# interactively, via launchd, or via a bare systemd unit.
+: "${HOME:=$(eval echo "~$(id -un)")}"
+
 HERMES_MODE="${HERMES_MODE:-docker}"
 HERMES_CONTAINER="${HERMES_CONTAINER:-hermes}"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
