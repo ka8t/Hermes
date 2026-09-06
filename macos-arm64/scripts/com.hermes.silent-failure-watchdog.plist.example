@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Optional: runs silent-failure-watchdog.sh every 5 minutes (see issue #56)
+  to catch sessions that ended with no reply at all and notify the affected
+  Telegram user directly — a local stopgap for an upstream hermes-agent gap,
+  not a fix for the gap itself.
+
+  Set HERMES_MODE below to "docker" (default) or "native" to match how you
+  run Hermes — see silent-failure-watchdog.sh's header comment.
+
+  Install:
+    cp scripts/com.hermes.silent-failure-watchdog.plist.example \
+       ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
+    # edit the REPLACE_WITH_REPO_PATH occurrences below
+    launchctl load ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
+
+  To stop it:
+    launchctl unload ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hermes.silent-failure-watchdog</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPLACE_WITH_REPO_PATH/macos-arm64/scripts/silent-failure-watchdog.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HERMES_MODE</key>
+    <string>docker</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>REPLACE_WITH_REPO_PATH/macos-arm64</string>
+
+  <!-- Periodic, not a persistent daemon: run once now, then every 300s. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>StandardOutPath</key>
+  <string>REPLACE_WITH_REPO_PATH/macos-arm64/silent-failure-watchdog.log</string>
+  <key>StandardErrorPath</key>
+  <string>REPLACE_WITH_REPO_PATH/macos-arm64/silent-failure-watchdog.log</string>
+</dict>
+</plist>

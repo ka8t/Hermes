@@ -153,6 +153,28 @@ webhook-delivered (Meta/Microsoft call this deployment over HTTPS),
 requiring the Cloudflare Tunnel infrastructure in #17 — Telegram's
 polling model needs none of that.
 
+**Silent-failure watchdog (live, #56)** — an out-of-band mitigation for a
+known gap in the flow above: the agent loop can occasionally reach `GW->>TG`
+with nothing to send (`hermes-agent`'s own tool-calling loop ends the
+session after a tool error without generating a final reply — upstream,
+not this repo's code). A periodic script (`silent-failure-watchdog.sh`,
+run via systemd timer on the VPS / launchd on macOS) polls `state.db`
+directly for sessions matching that signature and calls the Telegram Bot
+API's `sendMessage` itself, entirely independent of the agent loop:
+
+```mermaid
+sequenceDiagram
+    participant DB as state.db
+    participant WD as silent-failure-watchdog.sh<br/>(periodic, this repo's own script)
+    participant TG as Telegram Bot API
+    participant U as User's phone
+
+    WD->>DB: poll for source='telegram',<br/>end_reason='agent_close',<br/>zero assistant messages
+    DB-->>WD: matching session + chat_id
+    WD->>TG: sendMessage (fixed fallback text)
+    TG->>U: fallback reply
+```
+
 ## 4. Multi-user profile isolation (partially live — #5)
 
 **Live**: `linux-x86_64-vps/scripts/build-agent-template.sh` and

@@ -45,6 +45,7 @@ llama-swap via `host.docker.internal`.
 - [Starting](#starting)
 - [Verification](#verification)
 - [Running llama-swap in the background (optional)](#running-llama-swap-in-the-background-optional)
+- [Silent-failure watchdog (optional)](#silent-failure-watchdog-optional)
 - [Managing models](#managing-models)
 - [Common operations](#common-operations)
 - [Native alternative (no Docker at all)](#native-alternative-no-docker-at-all)
@@ -161,6 +162,26 @@ launchctl load ~/Library/LaunchAgents/com.hermes.llama-swap.plist
 
 Logs: `tail -f macos-arm64/llama-swap.log`. To stop it:
 `launchctl unload ~/Library/LaunchAgents/com.hermes.llama-swap.plist`.
+
+## Silent-failure watchdog (optional)
+
+A known upstream gap (hermes-agent's tool-calling loop, not this repo's
+code — see [issue #56](https://github.com/ka8t/Hermes/issues/56)) can end a
+Telegram session with no reply at all after a tool error. This runs
+`scripts/silent-failure-watchdog.sh` every 5 minutes to detect that and send
+the affected user a fallback message directly, bypassing hermes-agent for
+that one message:
+
+```bash
+cp scripts/com.hermes.silent-failure-watchdog.plist.example \
+   ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
+# edit the REPLACE_WITH_REPO_PATH occurrences, and HERMES_MODE if you're
+# running Hermes natively instead of via Docker
+launchctl load ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
+```
+
+Logs: `tail -f macos-arm64/silent-failure-watchdog.log`. To stop it:
+`launchctl unload ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist`.
 
 ## Managing models
 
@@ -325,6 +346,19 @@ present, expected old text present, or neither — the last case exits
 non-zero with a clear message rather than silently no-op'ing, since it means
 the installed `hermes-agent` version changed the file this script expects).
 Run after `setup-hermes-native.sh`, and again after any `hermes update`.
+
+**`scripts/silent-failure-watchdog.sh`** — no required parameters (optional
+env var: `HERMES_MODE`, `docker` (default) or `native`, matching
+`eval/lib-hermes-env.sh`'s convention). Local stopgap for
+[issue #56](https://github.com/ka8t/Hermes/issues/56): polls `state.db`
+for Telegram sessions that ended (`end_reason='agent_close'`) with zero
+assistant messages — a real upstream hermes-agent gap this repo can't fix
+directly — and sends the affected user a fixed fallback message straight
+via the Telegram Bot API, bypassing hermes-agent for that one message.
+Tracks its own dedup marker at `~/.hermes/silent-failure-watchdog.last-checked`
+so a session is never notified twice. Meant to run every few minutes via
+`com.hermes.silent-failure-watchdog.plist.example` (see "Silent-failure
+watchdog" above), not invoked manually in normal use.
 
 **Not available on macOS**: `build-agent-template.sh` and
 `provision-user.sh` (multi-user profile isolation) currently only exist

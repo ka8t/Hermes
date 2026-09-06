@@ -27,11 +27,12 @@ eval/bfcl-workspace/
 # macOS
 .DS_Store
 macos-arm64/llama-swap.log
+macos-arm64/silent-failure-watchdog.log
 
 # Editors
 .vscode/
 .idea/
 
 # Static Code Audit (SCA) tool cache — rule compilation cache, regenerated
-# on every run, see docs/audit-reports/ for the actual committed reports
+# on every run
 .sca-cache/

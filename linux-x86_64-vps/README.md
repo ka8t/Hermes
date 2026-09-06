@@ -35,6 +35,7 @@ Telegram messages.
 - [Configuration](#configuration)
 - [Starting](#starting)
 - [Verification](#verification)
+- [Silent-failure watchdog (optional)](#silent-failure-watchdog-optional)
 - [Common operations](#common-operations)
 - [Native alternative (no Docker at all)](#native-alternative-no-docker-at-all)
 - [Managing models](#managing-models)
@@ -131,6 +132,28 @@ dashboard refuses to start without them once reachable from outside
 `127.0.0.1`, which it is via the Docker port mapping); still put it behind a
 firewall or an SSH tunnel as a second layer, don't rely on the password
 alone facing the open internet.
+
+## Silent-failure watchdog (optional)
+
+A known upstream gap (hermes-agent's tool-calling loop, not this repo's
+code — see [issue #56](https://github.com/ka8t/Hermes/issues/56)) can end a
+Telegram session with no reply at all after a tool error. A systemd timer
+runs `scripts/silent-failure-watchdog.sh` every 5 minutes to detect that
+and send the affected user a fallback message directly, bypassing
+hermes-agent for that one message — this is the actually-unattended
+deployment, so a real user could otherwise be left with silence and no one
+noticing:
+
+```bash
+sudo cp scripts/silent-failure-watchdog.service.example /etc/systemd/system/silent-failure-watchdog.service
+sudo cp scripts/silent-failure-watchdog.timer.example /etc/systemd/system/silent-failure-watchdog.timer
+# edit the two REPLACE_WITH_REPO_PATH occurrences in the .service file
+sudo systemctl daemon-reload
+sudo systemctl enable --now silent-failure-watchdog.timer
+```
+
+Logs: `journalctl -u silent-failure-watchdog.service`. To stop it:
+`sudo systemctl disable --now silent-failure-watchdog.timer`.
 
 ## Common operations
 
@@ -281,6 +304,19 @@ yourself unless you want the binary path in isolation.
 `config/models.yaml.example.native`) and `LLAMA_SERVER_BIN` set to an
 executable. Keeps running in the foreground — install as a systemd service
 with `scripts/llama-swap.service.example` to run it unattended.
+
+**`scripts/silent-failure-watchdog.sh`** — no required parameters (optional
+env var: `HERMES_MODE`, `docker` (default) or `native`, matching
+`eval/lib-hermes-env.sh`'s convention). Local stopgap for
+[issue #56](https://github.com/ka8t/Hermes/issues/56): polls `state.db`
+for Telegram sessions that ended (`end_reason='agent_close'`) with zero
+assistant messages — a real upstream hermes-agent gap this repo can't fix
+directly — and sends the affected user a fixed fallback message straight
+via the Telegram Bot API, bypassing hermes-agent for that one message.
+Tracks its own dedup marker at `~/.hermes/silent-failure-watchdog.last-checked`
+so a session is never notified twice. Meant to run every few minutes via
+`silent-failure-watchdog.timer.example` (see "Silent-failure watchdog"
+above), not invoked manually in normal use.
 
 ## Troubleshooting
 

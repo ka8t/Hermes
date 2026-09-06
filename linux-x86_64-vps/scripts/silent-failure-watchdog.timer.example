@@ -1,0 +1,9 @@
+[Unit]
+Description=Run silent-failure-watchdog.service every 5 minutes (issue #56)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

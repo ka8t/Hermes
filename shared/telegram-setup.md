@@ -117,6 +117,17 @@ Once connected:
    `/set home` command so this channel also receives proactive notifications
    (cron jobs, background tasks).
 
+**Known gap**: hermes-agent's tool-calling loop can occasionally end a
+session with no reply at all after a tool error — a real end user sees
+silence with no indication anything went wrong (root cause is upstream, not
+this repo's code — see
+[issue #56](https://github.com/ka8t/Hermes/issues/56)). Both platform
+guides ("Silent-failure watchdog" in
+[`../macos-arm64/README.md`](../macos-arm64/README.md) and
+[`../linux-x86_64-vps/README.md`](../linux-x86_64-vps/README.md)) offer an
+optional watchdog that detects this and sends the affected user a fallback
+message directly.
+
 ### Why the first reply can take a very long time — and how to tell it's not stuck
 
 Every message sends Hermes's **entire** system prompt, skill index, and tool

@@ -1,0 +1,22 @@
+[Unit]
+# Optional: runs silent-failure-watchdog.sh (see issue #56) — a local
+# stopgap that catches sessions ending with no reply at all and notifies
+# the affected Telegram user directly. Not a fix for the upstream gap,
+# just a way to make sure the real end user never sees plain silence.
+#
+# Triggered by silent-failure-watchdog.timer, not run directly — this unit
+# is Type=oneshot and has no [Install] section of its own.
+#
+# Install:
+#   sudo cp scripts/silent-failure-watchdog.service.example /etc/systemd/system/silent-failure-watchdog.service
+#   sudo cp scripts/silent-failure-watchdog.timer.example /etc/systemd/system/silent-failure-watchdog.timer
+#   # edit the two REPLACE_WITH_REPO_PATH occurrences below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now silent-failure-watchdog.timer
+Description=Silent-failure watchdog for Hermes (issue #56)
+
+[Service]
+Type=oneshot
+WorkingDirectory=REPLACE_WITH_REPO_PATH/linux-x86_64-vps
+Environment=HERMES_MODE=docker
+ExecStart=REPLACE_WITH_REPO_PATH/linux-x86_64-vps/scripts/silent-failure-watchdog.sh
