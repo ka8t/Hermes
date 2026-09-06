@@ -155,12 +155,22 @@ polling model needs none of that.
 
 **Silent-failure watchdog (live, #56)** — an out-of-band mitigation for a
 known gap in the flow above: the agent loop can occasionally reach `GW->>TG`
-with nothing to send (`hermes-agent`'s own tool-calling loop ends the
-session after a tool error without generating a final reply — upstream,
-not this repo's code). A periodic script (`silent-failure-watchdog.sh`,
-run via systemd timer on the VPS / launchd on macOS) polls `state.db`
-directly for sessions matching that signature and calls the Telegram Bot
-API's `sendMessage` itself, entirely independent of the agent loop:
+with nothing to send (`hermes-agent`'s own tool-calling loop ends a turn
+after a tool error without generating a final reply — upstream, not this
+repo's code). A periodic script (`silent-failure-watchdog.sh`, run via
+systemd timer on the VPS / launchd on macOS) polls `state.db` directly for
+this and calls the Telegram Bot API's `sendMessage` itself, entirely
+independent of the agent loop.
+
+Detection is per-turn, not per-session: Telegram sessions stay open across
+many turns (unlike a CLI oneshot, which cleanly ends with
+`end_reason='agent_close'` — the signature originally assumed here, until
+live VPS testing found it never actually occurs for real Telegram
+sessions). The corrected check is "the most recent message in a Telegram
+session is from the user, no non-empty assistant reply followed it, and
+more time has passed than this deployment's own
+`agent.local_stream_stale_timeout` (config.yaml) allows for legitimate
+slow inference, times 2 to cover a retry":
 
 ```mermaid
 sequenceDiagram
@@ -169,7 +179,7 @@ sequenceDiagram
     participant TG as Telegram Bot API
     participant U as User's phone
 
-    WD->>DB: poll for source='telegram',<br/>end_reason='agent_close',<br/>zero assistant messages
+    WD->>DB: poll for source='telegram' sessions whose<br/>last message is 'user' with no assistant<br/>reply after it, older than 2x local_stream_stale_timeout
     DB-->>WD: matching session + chat_id
     WD->>TG: sendMessage (fixed fallback text)
     TG->>U: fallback reply

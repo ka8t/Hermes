@@ -351,12 +351,16 @@ Run after `setup-hermes-native.sh`, and again after any `hermes update`.
 env var: `HERMES_MODE`, `docker` (default) or `native`, matching
 `eval/lib-hermes-env.sh`'s convention). Local stopgap for
 [issue #56](https://github.com/ka8t/Hermes/issues/56): polls `state.db`
-for Telegram sessions that ended (`end_reason='agent_close'`) with zero
-assistant messages — a real upstream hermes-agent gap this repo can't fix
-directly — and sends the affected user a fixed fallback message straight
-via the Telegram Bot API, bypassing hermes-agent for that one message.
-Tracks its own dedup marker at `~/.hermes/silent-failure-watchdog.last-checked`
-so a session is never notified twice. Meant to run every few minutes via
+for Telegram sessions whose most recent message is from the user with no
+non-empty assistant reply after it, once more time has passed than this
+deployment's own `agent.local_stream_stale_timeout` (config.yaml) allows
+for legitimate slow inference (times 2, to cover a retry) — a real
+upstream hermes-agent gap this repo can't fix directly — and sends the
+affected user a fixed fallback message straight via the Telegram Bot API,
+bypassing hermes-agent for that one message. Tracks already-notified
+message IDs at `~/.hermes/silent-failure-watchdog.notified-ids` so the
+same dangling message is never notified twice. Meant to run every few
+minutes via
 `com.hermes.silent-failure-watchdog.plist.example` (see "Silent-failure
 watchdog" above), not invoked manually in normal use.
 
