@@ -171,7 +171,12 @@ deliberately, not overlooked; see the "Trust considerations" section of
 ```bash
 git clone https://github.com/ka8t/Hermes.git
 cd Hermes
+sudo ./start.sh   # guided, explained setup — detects your platform (Linux VPS today; see issue #59)
+```
 
+Prefer to read first, or on a platform `start.sh` doesn't cover yet?
+
+```bash
 # On an Apple Silicon Mac
 cd macos-arm64 && cat README.md
 
