@@ -180,6 +180,20 @@ cp scripts/com.hermes.silent-failure-watchdog.plist.example \
 launchctl load ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
 ```
 
+**Known limitation, found live-testing this (2026-09-06)**: if this repo is
+checked out under `~/Documents` (or `~/Desktop`/`~/Downloads`), the launchd
+job fails immediately with `getcwd: cannot access parent directories:
+Operation not permitted` — macOS's TCC sandboxing blocks a LaunchAgent from
+reading those folders by default, unlike an interactive terminal session,
+which already has that access. Existing LaunchAgents that stay entirely
+under `~/.hermes` (e.g. the gateway's own) aren't affected; this one is,
+because it reads `.env`/`config.yaml` from the repo checkout itself. Fix:
+grant `/bin/bash` Full Disk Access (System Settings → Privacy & Security →
+Full Disk Access → add `/bin/bash`), then reload the job. If you'd rather
+not grant that, run the script manually/on demand instead of installing it
+as a LaunchAgent — the VPS is the higher-priority target for this anyway
+(the actually-unattended deployment; see [issue #56](https://github.com/ka8t/Hermes/issues/56)).
+
 Logs: `tail -f macos-arm64/silent-failure-watchdog.log`. To stop it:
 `launchctl unload ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist`.
 
