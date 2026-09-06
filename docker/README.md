@@ -89,6 +89,25 @@ services:
 NAS platforms (Synology, unRAID, UGOS) can use the `PUID`/`PGID`
 aliases instead, matching the LinuxServer.io convention.
 
+## Updating an existing deployment's SOUL.md
+
+**Pulling a newer image does NOT retroactively apply SOUL.md fixes to an
+already-provisioned deployment.** `SOUL.md` (the identity file this image's
+`RUN printf ... >> docker/SOUL.md` lines append to) is only copied from the
+image into `/opt/data/SOUL.md` on a data volume's very first boot — deliberately, so
+the base image never silently overwrites edits you've made. Found live,
+2026-09-06 (#56): a VPS deployment recreated with a newer image still had
+the *old* SOUL.md content, missing #48's delegation-disclaimer fix, because
+its `./data` volume already existed from an earlier boot. If a SOUL.md fix
+lands after you're already running, apply it by hand:
+
+```bash
+# /opt/hermes/docker/SOUL.md is the image's fresh template (always current);
+# /opt/data/SOUL.md is your deployment's live, persisted copy — diff them
+# after pulling a new image, and append whatever's missing to the live one.
+docker compose exec hermes diff /opt/hermes/docker/SOUL.md /opt/data/SOUL.md
+```
+
 ## Building it yourself
 
 ```bash
