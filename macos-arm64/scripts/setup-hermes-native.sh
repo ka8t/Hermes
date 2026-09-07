@@ -49,13 +49,28 @@ else
   echo "==> ${HERMES_HOME}/config.yaml already exists — left untouched"
 fi
 
-if [ ! -f "${HERMES_HOME}/.env" ] && [ -f .env ]; then
-  cp .env "${HERMES_HOME}/.env"
-  echo "==> ${HERMES_HOME}/.env seeded from this directory's .env (Telegram, dashboard creds)"
+# Symlink, not copy: hermes-agent's own wizards (`hermes gateway setup`,
+# etc.) write to $HERMES_HOME/.env directly (hardcoded, not configurable) —
+# a one-time copy diverges from this directory's .env the moment either
+# side changes, which is exactly what happened in Docker mode before this
+# same fix (see ../../shared/single-env-file.md). A symlink makes it
+# genuinely the same file, so there's nothing to keep in sync.
+if [ -L "${HERMES_HOME}/.env" ]; then
+  echo "==> ${HERMES_HOME}/.env is already a symlink — left untouched"
 elif [ -f "${HERMES_HOME}/.env" ]; then
-  echo "==> ${HERMES_HOME}/.env already exists — left untouched"
+  echo "!! ${HERMES_HOME}/.env already exists as a REGULAR file (from an older"
+  echo "   cp-based setup, or a manually-created one) — left untouched to avoid"
+  echo "   silently discarding anything it holds that isn't in this directory's"
+  echo "   .env (e.g. an auto-generated API_SERVER_KEY, LLM provider keys)."
+  echo "   To switch to the single-file setup: compare the two files, copy any"
+  echo "   value from ${HERMES_HOME}/.env that .env here is missing, then run:"
+  echo "     rm ${HERMES_HOME}/.env && ln -s \"\$(pwd)/.env\" ${HERMES_HOME}/.env"
+elif [ -f .env ]; then
+  ln -s "$(pwd)/.env" "${HERMES_HOME}/.env"
+  echo "==> ${HERMES_HOME}/.env symlinked to this directory's .env (Telegram, dashboard creds —"
+  echo "    one file, no more syncing needed)"
 else
-  echo "!! No local .env found to seed from — copy .env.example to .env first (see README.md)" >&2
+  echo "!! No local .env found to link from — copy .env.example to .env first (see README.md)" >&2
 fi
 
 echo "==> Syncing bundled skills (agent-creation) into ${HERMES_HOME}/skills/ka8t-hermes/"

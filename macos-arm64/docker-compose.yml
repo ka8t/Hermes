@@ -18,6 +18,12 @@ services:
       - .env
     volumes:
       - ./data:/opt/data
+      # Single-.env test (issue TBD): bind-mount this project's own .env
+      # directly onto the path hermes-agent's own wizards write to
+      # ($HERMES_HOME/.env == /opt/data/.env inside the container), so
+      # there is exactly one .env file on disk instead of two silently
+      # diverging copies. See ../shared/single-env-file.md.
+      - ./.env:/opt/data/.env
     ports:
       - "8642:8642"   # gateway
       - "9119:9119"   # web dashboard (if HERMES_DASHBOARD=1)

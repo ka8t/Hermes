@@ -116,6 +116,24 @@ graph TB
 No GPU assumed by default (`:cpu` image tag) — see `shared/prebuilt-binaries.md`
 and issue #13 (specced) for GPU detection/support.
 
+### 2.3 Config flow: a single `.env` file per platform
+
+Both topologies above read and write exactly one `.env` file — the
+project root `.env` (`macos-arm64/.env` or `linux-x86_64-vps/.env`), not
+a separate copy under `./data/` or `$HERMES_HOME`. Docker Compose's
+`env_file:` directive and hermes-agent's own credential wizards (`hermes
+gateway setup`, which writes to `$HERMES_HOME/.env` — hardcoded upstream,
+not configurable) both resolve to that same file:
+
+- **Docker mode**: `docker-compose.yml` bind-mounts the project `.env`
+  onto `/opt/data/.env` (`$HERMES_HOME` inside the container), layered on
+  top of the broader `./data:/opt/data` directory mount.
+- **Native mode**: `setup-hermes-native.sh` symlinks `$HERMES_HOME/.env`
+  to the project `.env` instead of copying it.
+
+See `shared/single-env-file.md` for the two-file bug this replaces and
+how the fix was verified live.
+
 ## 3. Message flow (Telegram — live, verified)
 
 ```mermaid
