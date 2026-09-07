@@ -4,6 +4,7 @@ See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used belo
 
 ## Table of contents
 
+- [Alternative: the wizard's automatic (QR code) option](#alternative-the-wizards-automatic-qr-code-option)
 - [1. Create the bot with @BotFather](#1-create-the-bot-with-botfather)
 - [2. Get your Telegram user ID](#2-get-your-telegram-user-id)
 - [3. Fill in `.env`](#3-fill-in-env)
@@ -16,6 +17,23 @@ Telegram once a bot has been created and its credentials filled into `.env`.
 Every step below was walked through for real (including the mistakes) while
 building this repo — the troubleshooting section reflects what actually went
 wrong, not a guess at what might.
+
+## Alternative: the wizard's automatic (QR code) option
+
+`hermes gateway setup` (hermes-agent's own wizard, run by both platforms'
+`provision.sh`) also offers an automatic path — scan a QR code, confirm in
+Telegram, done — that captures both the bot token and your numeric user ID
+without the manual steps below. Found in `hermes-agent`'s
+`telegram_managed_bot.py` (2026-09-07); **not verified end-to-end in this
+repo**, unlike everything else on this page.
+
+Know before using it: the bot it creates comes from a **Nous
+Research-hosted onboarding service**
+(`setup.hermes-agent.nousresearch.com`) — a "child bot" you don't create or
+fully own yourself, unlike the BotFather path below. That's a real
+third-party dependency this repo doesn't rely on anywhere else. If owning
+the bot outright matters to you (this repo's own default posture — see
+[`enterprise-safety.md`](enterprise-safety.md)), use the manual path.
 
 ## 1. Create the bot with @BotFather
 
