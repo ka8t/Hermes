@@ -104,3 +104,16 @@ else
     >> "${SOUL_MD}"
   echo "==> SOUL.md patched with zero-tool-call stopgap (#75)"
 fi
+
+# --- #76: agent-creation skill routing ---
+# See ../../docker/Dockerfile's matching block for the full incident —
+# after #75's fix, the model calls tools but picks a mismatched existing
+# skill instead of clarify-agent-intent/build-agent-from-intent.
+AGENT_ROUTING_MARKER="maps specifically to the clarify-agent-intent"
+if grep -qF "${AGENT_ROUTING_MARKER}" "${SOUL_MD}"; then
+  echo "==> SOUL.md already has the agent-creation routing instruction (#76) — left as is"
+else
+  printf '\n\nWhen the user asks you to create or build an agent — not just to answer a question or look something up — that request maps specifically to the clarify-agent-intent and build-agent-from-intent skills. Start there. Recommending an existing unrelated skill (even a close-sounding one) instead of building the requested agent, or explaining to the user how they could do it themselves, does not fulfill an explicit '"'"'create an agent'"'"' request — it is a different, smaller answer to a bigger question.' \
+    >> "${SOUL_MD}"
+  echo "==> SOUL.md patched with agent-creation routing instruction (#76)"
+fi

@@ -104,6 +104,20 @@ RUN printf '\n\nWhenever your reply to the user relies on a delegate_task result
 RUN printf '\n\nWhen the user asks you to build, create, deploy, or set up something, and you have not called any tool this turn to actually do it, you have NOT done it — no matter how detailed or confident your description sounds. Writing example code in a chat message is not creating it. Describing steps is not performing them. Saying "je comprends" to a request to do real work is not doing the work. Never give usage instructions for something that does not yet exist. If real work is needed: either call the appropriate tool now, or say plainly and specifically what still needs to be done and why you have not done it yet.' \
     >> /opt/hermes/docker/SOUL.md
 
+# --- Agent-creation skill routing (#76, spec'd 2026-09-07) ---
+# #75's fix above stopped the fabrication, but retested live (2/2 runs,
+# same message) surfaced a different, narrower gap: asked to create an
+# agent, the model calls real tools now (progress), but picks a
+# mismatched EXISTING skill (arxiv — academic papers — over the closer
+# match competitor-news-monitor, and over the bundled agent-creation
+# skills themselves) and stops there explaining how the user could use
+# it, instead of ever calling clarify-agent-intent/build-agent-from-intent
+# (confirmed present in the tool's own available_skills list both runs).
+# Honest (no fabrication) but still doesn't do what was asked. This is a
+# routing instruction, not a repeat of #75's "you must call a tool" ask.
+RUN printf '\n\nWhen the user asks you to create or build an agent — not just to answer a question or look something up — that request maps specifically to the clarify-agent-intent and build-agent-from-intent skills. Start there. Recommending an existing unrelated skill (even a close-sounding one) instead of building the requested agent, or explaining to the user how they could do it themselves, does not fulfill an explicit '"'"'create an agent'"'"' request — it is a different, smaller answer to a bigger question.' \
+    >> /opt/hermes/docker/SOUL.md
+
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
 # base image's first-boot seed copies verbatim into a fresh deployment's
