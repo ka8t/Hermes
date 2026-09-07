@@ -116,23 +116,29 @@ graph TB
 No GPU assumed by default (`:cpu` image tag) — see `shared/prebuilt-binaries.md`
 and issue #13 (specced) for GPU detection/support.
 
-### 2.3 Config flow: a single `.env` file per platform
+### 2.3 Config flow: a single `.env` file (macOS; VPS native only)
 
-Both topologies above read and write exactly one `.env` file — the
-project root `.env` (`macos-arm64/.env` or `linux-x86_64-vps/.env`), not
-a separate copy under `./data/` or `$HERMES_HOME`. Docker Compose's
-`env_file:` directive and hermes-agent's own credential wizards (`hermes
-gateway setup`, which writes to `$HERMES_HOME/.env` — hardcoded upstream,
-not configurable) both resolve to that same file:
+Docker Compose's `env_file:` directive and hermes-agent's own credential
+wizards (`hermes gateway setup`, which writes to `$HERMES_HOME/.env` —
+hardcoded upstream, not configurable) both target the project root `.env`
+on macOS (either mode) and on the VPS's native (no-Docker) path:
 
-- **Docker mode**: `docker-compose.yml` bind-mounts the project `.env`
-  onto `/opt/data/.env` (`$HERMES_HOME` inside the container), layered on
-  top of the broader `./data:/opt/data` directory mount.
-- **Native mode**: `setup-hermes-native.sh` symlinks `$HERMES_HOME/.env`
-  to the project `.env` instead of copying it.
+- **Docker mode, macOS only**: `docker-compose.yml` bind-mounts the
+  project `.env` onto `/opt/data/.env` (`$HERMES_HOME` inside the
+  container), layered on top of the broader `./data:/opt/data` directory
+  mount.
+- **Native mode, both platforms**: `setup-hermes-native.sh` symlinks
+  `$HERMES_HOME/.env` to the project `.env` instead of copying it.
 
-See `shared/single-env-file.md` for the two-file bug this replaces and
-how the fix was verified live.
+**VPS Docker mode is the one exception**: the same bind-mount was tried
+live and reverted, 2026-09-07 — the image's own boot-time ownership step
+re-chowns `/opt/data` to its internal UID on every container start, and
+on native Linux Docker (no Docker Desktop virtiofs translation) that
+chown lands on the real host file, locking `docker compose` itself out of
+its own `env_file`. This platform keeps the two-file (`data/.env`)
+architecture for Docker mode until a mechanism that survives that
+per-boot chown is designed. See `shared/single-env-file.md` for the full
+incident, the recovery steps, and what a future fix would need.
 
 ## 3. Message flow (Telegram — live, verified)
 

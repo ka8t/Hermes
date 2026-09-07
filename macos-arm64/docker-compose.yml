@@ -18,7 +18,7 @@ services:
       - .env
     volumes:
       - ./data:/opt/data
-      # Single-.env test (issue TBD): bind-mount this project's own .env
+      # Single .env file (issue #73): bind-mount this project's own .env
       # directly onto the path hermes-agent's own wizards write to
       # ($HERMES_HOME/.env == /opt/data/.env inside the container), so
       # there is exactly one .env file on disk instead of two silently

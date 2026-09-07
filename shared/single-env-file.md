@@ -1,13 +1,18 @@
-# Single `.env` file (issue TBD)
+# Single `.env` file (issue #73)
 
 See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
 
-This deployment has exactly **one** `.env` file per platform — the one at
-the project root (`macos-arm64/.env` or `linux-x86_64-vps/.env`). Both
-Docker Compose's `env_file:` mechanism and hermes-agent's own credential
-wizards (`hermes gateway setup`, `hermes config set`, etc.) read from and
-write to that same file. This page documents the problem that used to
-exist here, and the fix.
+**Status: fixed on macOS (both Docker and native), fixed on the VPS native
+path, still open on the VPS Docker path** — tried live on the VPS,
+2026-09-07, and reverted after it broke `docker compose` itself. See "Why
+the VPS Docker path is different" below before assuming this is uniform
+across platforms.
+
+Where it's fixed: exactly **one** `.env` file at the project root
+(`macos-arm64/.env` or `linux-x86_64-vps/.env`) — both Docker Compose's
+`env_file:` mechanism and hermes-agent's own credential wizards (`hermes
+gateway setup`, `hermes config set`, etc.) read from and write to that
+same file, with nothing left to keep in sync.
 
 ## The problem this used to be
 
@@ -38,9 +43,9 @@ itself sets.
 
 ## The fix
 
-**Docker mode**: `docker-compose.yml` now bind-mounts the project `.env`
-file directly onto `/opt/data/.env`, in addition to the existing `./data`
-directory mount:
+**macOS Docker mode**: `macos-arm64/docker-compose.yml` bind-mounts the
+project `.env` file directly onto `/opt/data/.env`, in addition to the
+existing `./data` directory mount:
 
 ```yaml
 volumes:
@@ -61,9 +66,12 @@ special case. Verified live on the Mac deployment, 2026-09-07:
   non-root `hermes` user.
 - `TELEGRAM_HOME_CHANNEL` now reads correctly from both sides — the exact
   bug above no longer reproduces.
+- A plain `docker compose restart hermes` afterward left the host-side
+  `.env` still owned `mac:staff`, mode `600` — no ownership change, no
+  lockout. Contrast with the VPS below.
 
-**Native mode**: `setup-hermes-native.sh` now symlinks instead of
-copying:
+**Native mode, both platforms**: `setup-hermes-native.sh` symlinks
+instead of copying:
 
 ```bash
 ln -s "$(pwd)/.env" "${HERMES_HOME}/.env"
@@ -76,6 +84,62 @@ at `${HERMES_HOME}/.env` (e.g. from an older, cp-based setup) — it prints
 instructions to merge any values that file has and this directory's
 `.env` doesn't, rather than risk discarding something like a
 provider API key you'd configured there directly.
+
+## Why the VPS Docker path is different (tried and reverted, 2026-09-07)
+
+Applying the exact same bind-mount to `linux-x86_64-vps/docker-compose.yml`
+and recreating the container on the production VPS broke `docker compose`
+itself within seconds:
+
+```
+open /home/debian/hermes/linux-x86_64-vps/.env: permission denied
+```
+
+**Root cause**: the `ghcr.io/ka8t/hermes` image's own boot-time setup step
+(`cont-init.d/01-hermes-setup`, the `[stage2]` log lines) normalizes
+ownership under `/opt/data` to its internal runtime UID (`10000`) — and it
+does this on **every container start, not just first creation**: a plain
+`docker compose restart hermes` re-triggered it. On native Linux Docker (a
+VPS, no Docker Desktop), a bind-mounted file shares the host's real UID
+space with no translation — so that chown landed on the actual host file,
+turning it into `-rw------- 10000 10000 .env`, unreadable by the `debian`
+host user. Since `docker compose` itself needs to read `env_file: .env`
+to do *anything* — including `docker compose ps` — this locked out the
+tool that would normally fix it.
+
+**Why the Mac didn't hit this**: Docker Desktop for Mac's virtiofs
+bind-mount layer translates ownership between the container's view and
+the host's real file — the container-side chown never reaches the actual
+host inode. Confirmed directly: after the equivalent chown-on-every-boot
+step ran on the Mac, `ls -la .env` on the host still showed `mac:staff`,
+never the container's internal UID. That's a macOS/Docker-Desktop-specific
+behavior, not a Docker guarantee — it happens to make the same bind-mount
+safe there, not because the underlying mechanism is actually different.
+
+**Recovery** (for reference, should this recur): `docker compose exec`
+was *also* locked out (same env_file read). Plain `docker exec -u root
+hermes chown <host-uid>:<host-gid> /opt/data/.env` fixed it without
+needing host-level `sudo`, since root inside the container can chown a
+bind-mounted file to any UID on a non-remapped Linux Docker install.
+
+**Current state**: `linux-x86_64-vps/docker-compose.yml` does **not**
+bind-mount `.env` — reverted to the original `./data:/opt/data`-only
+mount, so this platform keeps the two-file (`data/.env`) architecture for
+Docker mode specifically, for now. The one-time value merge (real
+`TELEGRAM_HOME_CHANNEL` and `API_SERVER_KEY` copied into the project
+`.env`) was kept — that part is safe and doesn't depend on the bind-mount.
+**Native mode on the VPS is unaffected** by any of this (no container, no
+UID translation question) — the symlink fix applies there exactly as on
+macOS.
+
+This is an open problem, not a closed one: eliminating the two-file split
+for VPS Docker specifically would need a mechanism that survives the
+image's own per-boot ownership step (e.g. an ACL granting the host user
+access regardless of primary ownership, or redirecting `HERMES_HOME` to a
+path outside `/opt/data`'s ownership-normalization scope) — not
+attempted yet, and not something to improvise live against production
+again. Worth a proper design pass (this repo's own grilling-based spec
+process) before a second attempt.
 
 ## A file, not a purely duplicated one: what actually lives in it
 
@@ -121,9 +185,10 @@ underlying value; nothing to fix.
 
 ## Sources
 
-- This repo's own live testing, 2026-09-07 (Mac, Docker mode) — direct
-  observation of the recreate, the write-through test, and the container
-  logs quoted above.
+- This repo's own live testing, 2026-09-07 — Mac Docker mode (recreate,
+  write-through test, restart test) and the production VPS (bind-mount
+  attempt, the resulting `docker compose` lockout, and its recovery/
+  revert) — all direct observation, not assumed.
 - hermes-agent's `save_env_value()` / `load_hermes_dotenv()` behavior —
   found by inspecting the running container's file layout and startup
   logs in this repo's own testing, not from upstream documentation (not

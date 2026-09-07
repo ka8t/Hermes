@@ -36,12 +36,21 @@ services:
       - .env
     volumes:
       - ./data:/opt/data
-      # Bind-mount this project's own .env directly onto the path
-      # hermes-agent's own wizards write to ($HERMES_HOME/.env ==
-      # /opt/data/.env inside the container), so there is exactly one .env
-      # file on disk instead of two silently diverging copies. See
-      # ../shared/single-env-file.md.
-      - ./.env:/opt/data/.env
+      # NOT bind-mounting ./.env onto /opt/data/.env here, unlike the macOS
+      # Docker path — tried and reverted live, 2026-09-07: this image's own
+      # boot-time ownership step chowns /opt/data (recursively) to its
+      # internal UID on EVERY container start, not just first creation. On
+      # native Linux Docker (this VPS) that chown applies to the real host
+      # inode with no translation, which locked the host user out of .env
+      # entirely — including `docker compose` itself, since it needs to
+      # read env_file: .env to do anything at all. Recovered via `docker
+      # exec -u root hermes chown <host-uid> /opt/data/.env` (not `docker
+      # compose exec`, which was itself locked out). Docker Desktop for Mac
+      # happened to avoid this because its virtiofs bind-mount layer
+      # translates container-side ownership rather than writing it to the
+      # real host file — a macOS-specific quirk, not something to rely on
+      # here. See ../shared/single-env-file.md for the full incident and
+      # why this platform still uses the two-file (data/.env) architecture.
     ports:
       - "8642:8642"   # gateway
       - "127.0.0.1:8090:8090"   # WhatsApp Cloud API webhook (WHATSAPP_CLOUD_WEBHOOK_PORT)
