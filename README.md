@@ -171,10 +171,12 @@ deliberately, not overlooked; see the "Trust considerations" section of
 ```bash
 git clone https://github.com/ka8t/Hermes.git
 cd Hermes
-sudo ./start.sh   # guided, explained setup — detects your platform (Linux VPS today; see issue #59)
+./start.sh   # guided, explained setup — detects your platform (macOS or Linux VPS)
 ```
 
-Prefer to read first, or on a platform `start.sh` doesn't cover yet?
+(the VPS path needs root — `sudo ./start.sh` there; macOS doesn't need it at all)
+
+Prefer to read the manual steps first?
 
 ```bash
 # On an Apple Silicon Mac

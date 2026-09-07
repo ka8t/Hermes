@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The recommended first thing to run after cloning this repo (issue #62,
-# part of #59). Detects your platform and hands off to the right guided
+# The recommended first thing to run after cloning this repo (issue #62/#68,
+# part of #59/#65). Detects your platform and hands off to the right guided
 # path — you shouldn't need to read multiple READMEs just to get started.
 set -euo pipefail
 
@@ -21,11 +21,8 @@ case "$OS" in
     exec ./linux-x86_64-vps/provision.sh
     ;;
   Darwin)
-    echo "==> Detected macOS."
-    echo ""
-    echo "The guided, explained setup for macOS isn't built yet (issue #59) —"
-    echo "for now, see macos-arm64/README.md for the manual installation steps."
-    exit 0
+    echo "==> Detected macOS — continuing with the guided setup."
+    exec ./macos-arm64/provision.sh
     ;;
   *)
     echo "!! Unrecognized platform: ${OS}." >&2
