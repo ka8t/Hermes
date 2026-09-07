@@ -55,41 +55,44 @@ fi
 # These thresholds only apply to that default config — a different model
 # or context size invalidates them.
 echo "==> Checking RAM and disk headroom"
-# LC_NUMERIC=C throughout: found live, 2026-09-07 — on a machine set to a
-# locale that uses ',' as the decimal separator (e.g. fr_FR), awk's printf
-# and bc's output silently switch to comma-decimals ("26,2" instead of
-# "26.2"), which then fails as invalid syntax the moment bc tries to parse
-# it back in a comparison. Forcing C avoids depending on the operator's
-# locale for numbers that only ever flow between this script's own commands.
+# awk only, no bc: found live testing the VPS variant of this check,
+# 2026-09-07 — a fresh Debian install doesn't have bc installed by
+# default, and awk already handles floating-point arithmetic/comparisons
+# natively (macOS does ship bc, but using the same awk-only approach on
+# both platforms avoids two implementations of the same logic). Also
+# forced LC_ALL=C: on a machine using a comma-decimal locale (e.g.
+# fr_FR), awk's printf silently emits comma-decimals ("26,2" instead of
+# "26.2"), which then fails as invalid syntax wherever that number is
+# compared again.
 export LC_ALL=C
 PAGE_SIZE="$(sysctl -n hw.pagesize)"
 TOTAL_RAM_BYTES="$(sysctl -n hw.memsize)"
 FREE_PAGES="$(vm_stat | awk '/^Pages free:/ {gsub("\\.", "", $3); print $3}')"
 INACTIVE_PAGES="$(vm_stat | awk '/^Pages inactive:/ {gsub("\\.", "", $3); print $3}')"
-AVAILABLE_RAM_GB="$(echo "scale=1; (${FREE_PAGES:-0} + ${INACTIVE_PAGES:-0}) * ${PAGE_SIZE} / 1073741824" | bc)"
-TOTAL_RAM_GB="$(echo "scale=1; ${TOTAL_RAM_BYTES} / 1073741824" | bc)"
+AVAILABLE_RAM_GB="$(awk -v f="${FREE_PAGES:-0}" -v i="${INACTIVE_PAGES:-0}" -v p="${PAGE_SIZE}" 'BEGIN{printf "%.1f", (f+i)*p/1073741824}')"
+TOTAL_RAM_GB="$(awk -v b="${TOTAL_RAM_BYTES}" 'BEGIN{printf "%.1f", b/1073741824}')"
 DISK_AVAIL_GB="$(df -k . | awk 'NR==2 {printf "%.1f", $4/1048576}')"
 
 echo "    RAM:  ${AVAILABLE_RAM_GB}GB available / ${TOTAL_RAM_GB}GB total"
 echo "    Disk: ${DISK_AVAIL_GB}GB available"
 
 RAM_OK=1
-if (( $(echo "${AVAILABLE_RAM_GB} < 9" | bc -l) )); then
+if awk -v v="${AVAILABLE_RAM_GB}" 'BEGIN{exit !(v<9)}'; then
   echo "    FAIL: below the ~9GB this default config actually needs — expect"
   echo "          swapping/OOM, not just slowness."
   RAM_OK=0
-elif (( $(echo "${AVAILABLE_RAM_GB} < 11" | bc -l) )); then
+elif awk -v v="${AVAILABLE_RAM_GB}" 'BEGIN{exit !(v<11)}'; then
   echo "    WARN: close to the ~9GB measured footprint — little headroom for"
   echo "          anything else running on this Mac."
 else
   echo "    PASS: comfortable headroom above the ~9GB measured footprint."
 fi
 
-if (( $(echo "${DISK_AVAIL_GB} < 10" | bc -l) )); then
+if awk -v v="${DISK_AVAIL_GB}" 'BEGIN{exit !(v<10)}'; then
   echo "    FAIL: below ~10GB — the default model alone is ~4.6GB and the"
   echo "          Hermes Docker image is ~3.9GB; you'll run out mid-setup."
   RAM_OK=0
-elif (( $(echo "${DISK_AVAIL_GB} < 20" | bc -l) )); then
+elif awk -v v="${DISK_AVAIL_GB}" 'BEGIN{exit !(v<20)}'; then
   echo "    WARN: usable, but little room for a second model or Docker"
   echo "          image/log growth."
 else
