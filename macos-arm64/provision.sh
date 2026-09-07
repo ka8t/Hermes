@@ -169,11 +169,4 @@ else
   esac
 fi
 
-echo ""
-echo "==> Setup complete. Try it now:"
-echo "    Send your Telegram bot (or, in this same terminal, run"
-echo "    \`hermes -z \"...\"\` / \`docker compose exec hermes hermes -z \"...\"\`):"
-echo "    \"Create an agent that watches a subreddit for AI news and messages"
-echo "    me when something important comes up.\""
-echo "    On Metal, the first reply takes seconds to a couple minutes, not"
-echo "    the 25-40+ minutes a CPU-only VPS needs."
+HERMES_RUN_MODE="${HERMES_MODE_CHOICE}" ./scripts/guided-demo.sh
