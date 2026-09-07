@@ -76,6 +76,28 @@ nvidia-smi         # GPU presence (if applicable) — "command not found"
                     # means no NVIDIA GPU/driver
 ```
 
+## RAM and disk headroom (issue #72)
+
+`verify-inference.sh` (both platforms) also checks available RAM and disk
+space alongside the throughput benchmark, using real measured numbers —
+not guesses — for this repo's *default* config (Llama-3.1-8B-Instruct,
+65536-token context, q8_0 KV cache quantization, already the default on
+both platforms):
+
+| | Measured footprint | FAIL below | WARN below | PASS |
+|---|---|---|---|---|
+| RAM (macOS, M1) | ~9GB RSS | 9GB | 11GB | ≥11GB |
+| RAM (VPS, Debian 8vCPU CPU-only) | ~12GB RSS | 12GB | 14GB | ≥14GB |
+| Disk (both) | ~8.5-9.7GB (model + image[s]) | 10GB | 20GB | ≥20GB |
+
+These thresholds are calibrated for the default model/context — changing
+either invalidates them. Uses `awk` for the arithmetic/comparisons, not
+`bc`: found live, 2026-09-07, that a fresh Debian VPS doesn't have `bc`
+installed by default. Also forces `LC_ALL=C` for this section: on a
+machine using a comma-decimal locale (e.g. `fr_FR`), `awk`'s `printf`
+silently emits comma-decimals ("26,2"), breaking every comparison that
+reads the number back.
+
 ## What's auto-detected today
 
 `linux-x86_64-vps/provision.sh` (Docker path) and
