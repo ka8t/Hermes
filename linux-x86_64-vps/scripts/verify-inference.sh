@@ -47,8 +47,54 @@ if [ -z "$PROMPT_SIZE_JSON" ]; then
   echo "    real-prompt-size estimate, throughput numbers below are still real and valid."
 fi
 
+# --- RAM/disk headroom (issue #72) — real measured numbers, not guesses:
+# the default deployment (Llama-3.1-8B-Instruct, 65536-token context, q8_0
+# KV cache quantization — already this platform's default) measured ~12GB
+# RSS on the production reference VPS (Debian, 8 vCPU, CPU-only — see
+# ../../shared/hardware-sizing.md's #52 section). These thresholds only
+# apply to that default config — a different model or context invalidates
+# them.
+echo "==> Checking RAM and disk headroom"
+# LC_NUMERIC=C: found live testing the macOS variant of this check,
+# 2026-09-07 — a locale using ',' as the decimal separator (e.g. fr_FR)
+# makes awk/bc emit comma-decimals, which bc then fails to parse back in a
+# comparison. Forcing C avoids depending on the operator's locale.
+export LC_ALL=C
+read -r _ TOTAL_RAM_BYTES _ _ _ AVAILABLE_RAM_BYTES < <(free -b | awk 'NR==2')
+AVAILABLE_RAM_GB="$(echo "scale=1; ${AVAILABLE_RAM_BYTES} / 1073741824" | bc)"
+TOTAL_RAM_GB="$(echo "scale=1; ${TOTAL_RAM_BYTES} / 1073741824" | bc)"
+DISK_AVAIL_GB="$(df -k . | awk 'NR==2 {printf "%.1f", $4/1048576}')"
+
+echo "    RAM:  ${AVAILABLE_RAM_GB}GB available / ${TOTAL_RAM_GB}GB total"
+echo "    Disk: ${DISK_AVAIL_GB}GB available"
+
+RAM_OK=1
+if (( $(echo "${AVAILABLE_RAM_GB} < 12" | bc -l) )); then
+  echo "    FAIL: below the ~12GB this default config actually needs — expect"
+  echo "          swapping/OOM, not just slowness."
+  RAM_OK=0
+elif (( $(echo "${AVAILABLE_RAM_GB} < 14" | bc -l) )); then
+  echo "    WARN: close to the ~12GB measured footprint — little headroom for"
+  echo "          anything else running on this box."
+else
+  echo "    PASS: comfortable headroom above the ~12GB measured footprint."
+fi
+
+if (( $(echo "${DISK_AVAIL_GB} < 10" | bc -l) )); then
+  echo "    FAIL: below ~10GB — the default model alone is ~4.6GB, the Hermes"
+  echo "          image ~3.9GB, and llama-swap:cpu ~1.2GB; you'll run out mid-setup."
+  RAM_OK=0
+elif (( $(echo "${DISK_AVAIL_GB} < 20" | bc -l) )); then
+  echo "    WARN: usable, but little room for a second model or Docker"
+  echo "          image/log growth."
+else
+  echo "    PASS: comfortable disk headroom."
+fi
+echo ""
+
 echo "==> Running inference benchmark (padded-prompt prefill + generation) — this can take a while on CPU-only hardware, that's the point"
-python3 - "$LLAMA_URL" "$MODEL" "$PROMPT_SIZE_JSON" <<'PY'
+LATENCY_OK=1
+python3 - "$LLAMA_URL" "$MODEL" "$PROMPT_SIZE_JSON" <<'PY' || LATENCY_OK=0
 import json, sys, time, urllib.request
 
 llama_url, model, prompt_size_raw = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -138,3 +184,8 @@ else:
     print("      verify the estimate manually once the container is running.")
     sys.exit(0)
 PY
+
+if [ "${RAM_OK}" = "0" ] || [ "${LATENCY_OK}" = "0" ]; then
+  exit 1
+fi
+exit 0
