@@ -116,29 +116,36 @@ graph TB
 No GPU assumed by default (`:cpu` image tag) — see `shared/prebuilt-binaries.md`
 and issue #13 (specced) for GPU detection/support.
 
-### 2.3 Config flow: a single `.env` file (macOS; VPS native only)
+### 2.3 Config flow: a single `.env` file, all four setups
 
 Docker Compose's `env_file:` directive and hermes-agent's own credential
 wizards (`hermes gateway setup`, which writes to `$HERMES_HOME/.env` —
 hardcoded upstream, not configurable) both target the project root `.env`
-on macOS (either mode) and on the VPS's native (no-Docker) path:
+on every platform/mode combination — no separate `data/.env` or
+`~/.hermes/.env` copy anywhere:
 
-- **Docker mode, macOS only**: `docker-compose.yml` bind-mounts the
-  project `.env` onto `/opt/data/.env` (`$HERMES_HOME` inside the
+- **Docker mode, macOS**: `docker-compose.yml` bind-mounts the project
+  `.env` directly onto `/opt/data/.env` (`$HERMES_HOME` inside the
   container), layered on top of the broader `./data:/opt/data` directory
   mount.
+- **Docker mode, VPS**: a different mechanism, because the direct
+  bind-mount above breaks on native Linux Docker — the image's own
+  boot-time step re-chowns `$HERMES_HOME/.env` to its internal UID on
+  every container start, and without Docker Desktop's virtiofs
+  translation that lands on the real host file, locking `docker compose`
+  itself out of its own `env_file` (tried and reverted live, 2026-09-07).
+  Instead, the project `.env` is bind-mounted to a sibling path
+  (`/opt/data/.env.real`), and `/opt/data/.env` is a **symlink** to it —
+  the same boot-time step explicitly skips ownership changes on a
+  symlinked path, and hermes-agent's own write function preserves
+  symlinks rather than replacing them. `provision.sh` sets this up before
+  the first container boot.
 - **Native mode, both platforms**: `setup-hermes-native.sh` symlinks
   `$HERMES_HOME/.env` to the project `.env` instead of copying it.
 
-**VPS Docker mode is the one exception**: the same bind-mount was tried
-live and reverted, 2026-09-07 — the image's own boot-time ownership step
-re-chowns `/opt/data` to its internal UID on every container start, and
-on native Linux Docker (no Docker Desktop virtiofs translation) that
-chown lands on the real host file, locking `docker compose` itself out of
-its own `env_file`. This platform keeps the two-file (`data/.env`)
-architecture for Docker mode until a mechanism that survives that
-per-boot chown is designed. See `shared/single-env-file.md` for the full
-incident, the recovery steps, and what a future fix would need.
+See `shared/single-env-file.md` for the full incident (both the reverted
+first attempt and the working fix), verified live against the VPS on
+2026-09-07.
 
 ## 3. Message flow (Telegram — live, verified)
 

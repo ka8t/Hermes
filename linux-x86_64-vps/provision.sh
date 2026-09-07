@@ -69,6 +69,28 @@ if [ ! -f data/models.yaml ]; then
   echo "==> data/models.yaml initialized from config/models.yaml.example"
 fi
 
+# Single .env file (issue #73): make data/.env a symlink to .env.real (which
+# docker-compose.yml bind-mounts from this directory's own .env) BEFORE the
+# first container boot, so hermes-agent's own first-boot seed step never
+# creates a separate real file there. Must happen before `docker compose up
+# -d` below — once the container has booted with a real file at that path,
+# fixing it needs live surgery inside the running container instead (see
+# ../shared/single-env-file.md for that recovery procedure and why a plain
+# bind-mount of .env itself doesn't work on native Linux Docker).
+if [ -L data/.env ]; then
+  : # already set up correctly, nothing to do
+elif [ -f data/.env ]; then
+  echo "!! data/.env already exists as a REGULAR file (from a deployment"
+  echo "   provisioned before this fix) — left untouched to avoid discarding"
+  echo "   anything it holds that isn't in this directory's .env. See"
+  echo "   ../shared/single-env-file.md for how to switch it to the"
+  echo "   single-file setup on a running container."
+else
+  ln -s .env.real data/.env
+  echo "==> data/.env symlinked to .env.real (this directory's own .env, via"
+  echo "    docker-compose.yml's bind-mount) — one file, no more syncing needed"
+fi
+
 MODEL_FILE="$(grep -E '^MODEL_FILE=' .env | cut -d= -f2)"
 MODEL_FILE="${MODEL_FILE:-Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf}"
 MODEL_REPO="$(grep -E '^MODEL_REPO=' .env | cut -d= -f2)"

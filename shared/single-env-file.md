@@ -2,11 +2,13 @@
 
 See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
 
-**Status: fixed on macOS (both Docker and native), fixed on the VPS native
-path, still open on the VPS Docker path** — tried live on the VPS,
-2026-09-07, and reverted after it broke `docker compose` itself. See "Why
-the VPS Docker path is different" below before assuming this is uniform
-across platforms.
+**Status: fixed everywhere** — macOS (Docker and native) and the VPS
+(Docker and native). The VPS Docker path took two attempts: a direct
+bind-mount (like macOS) broke live production within seconds and was
+reverted; a symlink-based approach fixed it properly. See "Why the VPS
+Docker path needed a different mechanism" below — it's a real platform
+difference worth understanding before touching either compose file
+again, not just history.
 
 Where it's fixed: exactly **one** `.env` file at the project root
 (`macos-arm64/.env` or `linux-x86_64-vps/.env`) — both Docker Compose's
@@ -85,27 +87,43 @@ instructions to merge any values that file has and this directory's
 `.env` doesn't, rather than risk discarding something like a
 provider API key you'd configured there directly.
 
-## Why the VPS Docker path is different (tried and reverted, 2026-09-07)
+## Why the VPS Docker path needed a different mechanism
 
-Applying the exact same bind-mount to `linux-x86_64-vps/docker-compose.yml`
-and recreating the container on the production VPS broke `docker compose`
-itself within seconds:
+**First attempt (reverted): the same direct bind-mount as macOS.**
+Applying `./.env:/opt/data/.env` to `linux-x86_64-vps/docker-compose.yml`
+and recreating the container on the VPS broke `docker compose` itself
+within seconds:
 
 ```
 open /home/debian/hermes/linux-x86_64-vps/.env: permission denied
 ```
 
 **Root cause**: the `ghcr.io/ka8t/hermes` image's own boot-time setup step
-(`cont-init.d/01-hermes-setup`, the `[stage2]` log lines) normalizes
-ownership under `/opt/data` to its internal runtime UID (`10000`) — and it
-does this on **every container start, not just first creation**: a plain
-`docker compose restart hermes` re-triggered it. On native Linux Docker (a
-VPS, no Docker Desktop), a bind-mounted file shares the host's real UID
-space with no translation — so that chown landed on the actual host file,
-turning it into `-rw------- 10000 10000 .env`, unreadable by the `debian`
-host user. Since `docker compose` itself needs to read `env_file: .env`
-to do *anything* — including `docker compose ps` — this locked out the
-tool that would normally fix it.
+(`cont-init.d/01-hermes-setup` → `/opt/hermes/docker/stage2-hook.sh`, the
+`[stage2]` log lines) unconditionally `chown`s `$HERMES_HOME/.env` to its
+internal runtime UID (`10000`) on **every container start, not just first
+creation** — confirmed by reading the installed script directly:
+
+```sh
+# .env holds API keys and secrets — restrict to owner-only access. Applied
+# unconditionally (not only on first-seed) so a host-mounted .env that was
+# created with a permissive umask gets tightened on every container start.
+if [ -f "$HERMES_HOME/.env" ]; then
+    ...
+    chown hermes:hermes "$HERMES_HOME/.env" 2>/dev/null || true
+    chmod 600 "$HERMES_HOME/.env" 2>/dev/null || true
+fi
+```
+
+On native Linux Docker (a VPS, no Docker Desktop), a bind-mounted file
+shares the host's real UID space with no translation — so that chown
+landed on the actual host file, turning it into `-rw------- 10000 10000
+.env`, unreadable by the `debian` host user. Since `docker compose`
+itself needs to read `env_file: .env` to do *anything* — including
+`docker compose ps` — this locked out the tool that would normally fix
+it. (Recovery, for reference: `docker compose exec` is *also* locked out
+— plain `docker exec -u root hermes chown <host-uid>:<host-gid>
+/opt/data/.env` works without needing host-level `sudo`.)
 
 **Why the Mac didn't hit this**: Docker Desktop for Mac's virtiofs
 bind-mount layer translates ownership between the container's view and
@@ -113,33 +131,76 @@ the host's real file — the container-side chown never reaches the actual
 host inode. Confirmed directly: after the equivalent chown-on-every-boot
 step ran on the Mac, `ls -la .env` on the host still showed `mac:staff`,
 never the container's internal UID. That's a macOS/Docker-Desktop-specific
-behavior, not a Docker guarantee — it happens to make the same bind-mount
-safe there, not because the underlying mechanism is actually different.
+behavior, not a Docker guarantee — it makes the same bind-mount safe
+there, not because the underlying mechanism is actually different.
 
-**Recovery** (for reference, should this recur): `docker compose exec`
-was *also* locked out (same env_file read). Plain `docker exec -u root
-hermes chown <host-uid>:<host-gid> /opt/data/.env` fixed it without
-needing host-level `sudo`, since root inside the container can chown a
-bind-mounted file to any UID on a non-remapped Linux Docker install.
+**Second attempt (works): a symlink instead of a direct bind-mount.**
+The same stage2-hook.sh has a guard that the first attempt never
+triggered — reading further into the script surfaced it:
 
-**Current state**: `linux-x86_64-vps/docker-compose.yml` does **not**
-bind-mount `.env` — reverted to the original `./data:/opt/data`-only
-mount, so this platform keeps the two-file (`data/.env`) architecture for
-Docker mode specifically, for now. The one-time value merge (real
-`TELEGRAM_HOME_CHANNEL` and `API_SERVER_KEY` copied into the project
-`.env`) was kept — that part is safe and doesn't depend on the bind-mount.
-**Native mode on the VPS is unaffected** by any of this (no container, no
-UID translation question) — the symlink fix applies there exactly as on
-macOS.
+```sh
+path_has_symlink_component() { ... if [ -L "$path" ]; then return 0; fi ... }
+refuse_symlinked_path() {
+    if path_has_symlink_component "$target"; then
+        echo "[stage2] Warning: refusing $action through symlinked path $target — continuing"
+        return 0
+    fi
+    return 1
+}
+```
 
-This is an open problem, not a closed one: eliminating the two-file split
-for VPS Docker specifically would need a mechanism that survives the
-image's own per-boot ownership step (e.g. an ACL granting the host user
-access regardless of primary ownership, or redirecting `HERMES_HOME` to a
-path outside `/opt/data`'s ownership-normalization scope) — not
-attempted yet, and not something to improvise live against production
-again. Worth a proper design pass (this repo's own grilling-based spec
-process) before a second attempt.
+If `$HERMES_HOME/.env` is a **symlink**, the chown/chmod above is skipped
+entirely. Separately, `hermes-agent`'s own write path
+(`save_env_value()` → `_write_env_lines()` → `atomic_replace()` in
+`/opt/hermes/utils.py`) turned out to already handle this deliberately —
+its docstring: *"Atomically move tmp_path onto target, preserving
+symlinks. Resolves a symlink first so os.replace writes the real file in
+place and the symlink survives."* So a symlinked `.env` survives both the
+ownership-fix step and the wizard's own writes, by design on hermes-agent's
+side, not by accident.
+
+**Implementation**: `linux-x86_64-vps/docker-compose.yml` bind-mounts the
+project `.env` to a **sibling** path, `/opt/data/.env.real`, instead of
+directly onto `/opt/data/.env`:
+
+```yaml
+volumes:
+  - ./data:/opt/data
+  - ./.env:/opt/data/.env.real
+```
+
+`linux-x86_64-vps/provision.sh` creates `data/.env` as a symlink to
+`.env.real` *before* the first `docker compose up -d` (so hermes-agent's
+own first-boot seed step, which only fires when no file exists at that
+path, never gets a chance to create a real one there). For a deployment
+provisioned before this fix, the equivalent live-surgery on a running
+container is: `docker exec -u root hermes sh -c "rm /opt/data/.env && ln
+-s .env.real /opt/data/.env"`.
+
+**Verified live on the VPS, 2026-09-07**:
+- Container recreate (adding the `.env.real` mount only — doesn't touch
+  `/opt/data/.env` itself, so no lockout risk during the switch): clean,
+  host `.env` untouched.
+- Symlink surgery via `docker exec -u root`: succeeded, content resolved
+  correctly through the symlink from inside the container.
+- **The actual test that matters**: `docker compose restart hermes`
+  afterward — the exact operation that caused the lockout the first
+  time. Logs showed `[stage2] Warning: refusing chown through symlinked
+  path /opt/data/.env — continuing` (twice — the chown and the chmod),
+  and the host `.env` stayed `debian:debian` throughout.
+- A direct probe of the real write path — `docker exec -u root hermes
+  python3 -c "from hermes_cli.config import save_env_value;
+  save_env_value('TEST_SINGLE_ENV_PROBE', 'probe-ok')"` (the same
+  function `hermes gateway setup` calls, exercised without touching real
+  Telegram/API credentials) — wrote through to the real host `.env`, and
+  the symlink survived the write (not replaced by a new regular file).
+  Cleaned up via `remove_env_value()` immediately after.
+- Telegram reconnected, dashboard responded normally throughout.
+
+**macOS Docker mode stays on the direct bind-mount** (not switched to the
+symlink pattern) — it already works there, verified across a recreate
+and a plain restart, and there's no reason to add the extra indirection
+where it isn't needed.
 
 ## A file, not a purely duplicated one: what actually lives in it
 
@@ -186,10 +247,15 @@ underlying value; nothing to fix.
 ## Sources
 
 - This repo's own live testing, 2026-09-07 — Mac Docker mode (recreate,
-  write-through test, restart test) and the production VPS (bind-mount
-  attempt, the resulting `docker compose` lockout, and its recovery/
-  revert) — all direct observation, not assumed.
-- hermes-agent's `save_env_value()` / `load_hermes_dotenv()` behavior —
-  found by inspecting the running container's file layout and startup
-  logs in this repo's own testing, not from upstream documentation (not
-  otherwise documented as of hermes-agent 0.21.0).
+  write-through test, restart test) and the VPS (the reverted direct
+  bind-mount and its lockout/recovery, then the symlink fix: recreate,
+  live symlink surgery, restart test, and the `save_env_value()` write
+  probe) — all direct observation, not assumed.
+- `stage2-hook.sh` (installed inside `ghcr.io/ka8t/hermes`, read via
+  `docker exec hermes cat /opt/hermes/docker/stage2-hook.sh`) and
+  `hermes_cli/config.py` / `utils.py`'s `save_env_value()` /
+  `_write_env_lines()` / `atomic_replace()` (read via `docker exec hermes
+  grep ...` against the installed package) — the exact chown/chmod and
+  symlink-preserving-write behavior quoted above came from reading this
+  repo's own deployed image's source directly, not from upstream
+  documentation (not otherwise documented as of hermes-agent 0.21.0).
