@@ -91,3 +91,16 @@ else
     >> "${SOUL_MD}"
   echo "==> SOUL.md patched with delegation-disclaimer stopgap (#48)"
 fi
+
+# --- #75: zero-tool-call fabrication stopgap ---
+# See ../../docker/Dockerfile's matching block for the full incident this
+# addresses — a different failure mode than #48's: no tool call at all,
+# not a checkable-but-fabricated one.
+ZERO_TOOL_MARKER="you have not called any tool this turn to actually do it"
+if grep -qF "${ZERO_TOOL_MARKER}" "${SOUL_MD}"; then
+  echo "==> SOUL.md already has the zero-tool-call stopgap (#75) — left as is"
+else
+  printf '\n\nWhen the user asks you to build, create, deploy, or set up something, and you have not called any tool this turn to actually do it, you have NOT done it — no matter how detailed or confident your description sounds. Writing example code in a chat message is not creating it. Describing steps is not performing them. Saying "je comprends" to a request to do real work is not doing the work. Never give usage instructions for something that does not yet exist. If real work is needed: either call the appropriate tool now, or say plainly and specifically what still needs to be done and why you have not done it yet.' \
+    >> "${SOUL_MD}"
+  echo "==> SOUL.md patched with zero-tool-call stopgap (#75)"
+fi

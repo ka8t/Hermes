@@ -86,6 +86,24 @@ RUN printf '\n\nBefore sending any message that states or implies a task succeed
 RUN printf '\n\nWhenever your reply to the user relies on a delegate_task result — whether or not it appears to have succeeded — append this exact note at the end of your message: "Note: this involved a delegated subtask; please verify the reported outcome independently before relying on it." Add it every time delegate_task was used this turn, with no exception for results that look successful.' \
     >> /opt/hermes/docker/SOUL.md
 
+# --- Zero-tool-call fabrication stopgap (#75, spec'd 2026-09-07) ---
+# The two instructions above cover cases where a tool WAS called (and its
+# result needs checking, or came from a delegated subagent). Found live,
+# 2026-09-07, real Telegram conversation: a completely different failure
+# mode where the model never calls any tool at all — asked to create,
+# deploy, and test an agent, it instead described a plan in prose, wrote
+# illustrative Python as inline chat text (never executed), said "je
+# comprends" to an explicit "do the actual work" instruction, and then
+# fabricated usage instructions for an agent that was never created.
+# Confirmed directly against state.db: every message in that exchange had
+# tool_calls IS NULL. Consistent with this deployment's own measured BFCL
+# tool-calling reliability for this model (~53-55%, see
+# shared/model-evaluation.md's #48/#55 section) — a live instance of the
+# same weakness, manifesting as "never attempts a tool call" instead of
+# "calls a tool and lies about the result".
+RUN printf '\n\nWhen the user asks you to build, create, deploy, or set up something, and you have not called any tool this turn to actually do it, you have NOT done it — no matter how detailed or confident your description sounds. Writing example code in a chat message is not creating it. Describing steps is not performing them. Saying "je comprends" to a request to do real work is not doing the work. Never give usage instructions for something that does not yet exist. If real work is needed: either call the appropriate tool now, or say plainly and specifically what still needs to be done and why you have not done it yet.' \
+    >> /opt/hermes/docker/SOUL.md
+
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
 # base image's first-boot seed copies verbatim into a fresh deployment's
