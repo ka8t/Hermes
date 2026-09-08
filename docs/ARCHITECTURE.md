@@ -67,9 +67,14 @@ graph LR
 
 ## 2. Deployment topologies (live)
 
-Two independent platform configurations, each with a Docker path and a
-fully-native (no-Docker) path. See `README.md`'s comparison table and
-each platform's own README for exact commands.
+Two independent platform configurations. macOS offers a Docker path and
+a fully-native (no-Docker) path for Hermes itself (llama-swap/llama-server
+always run natively there regardless). The VPS is Docker-only — a native
+(no-Docker) VPS path was built and briefly available (2026-09-07) but
+abandoned before any real deployment used it, in favor of a single
+supported path per platform; see `docs/adr/0001-vps-docker-only.md`. See
+`README.md`'s comparison table and each platform's own README for exact
+commands.
 
 ### 2.1 macOS (Apple Silicon)
 
@@ -98,18 +103,13 @@ of whether Hermes itself does.
 
 ```mermaid
 graph TB
-    subgraph DockerV["Docker Compose path (default)"]
+    subgraph DockerV["Docker Compose path (only supported path)"]
         LSv["llama-swap container<br/>ghcr.io/mostlygeek/llama-swap:cpu"] -->|spawns| LCv[llama-server]
         Hv[hermes container] -->|llama-swap:8080| LSv
-    end
-    subgraph NativeV["Native path (no Docker at all)"]
-        LSvn[llama-swap process] -->|spawns| LCvn[llama-server]
-        Hvn[hermes native process] -->|127.0.0.1:8080| LSvn
     end
     CF["cloudflared<br/>(specced, #17 — only for WhatsApp/Teams)"]
 
     TGv[Telegram] --> Hv
-    TGv --> Hvn
     CF -. specced .-> Hv
 ```
 
@@ -140,7 +140,7 @@ on every platform/mode combination — no separate `data/.env` or
   symlinked path, and hermes-agent's own write function preserves
   symlinks rather than replacing them. `provision.sh` sets this up before
   the first container boot.
-- **Native mode, both platforms**: `setup-hermes-native.sh` symlinks
+- **Native mode (macOS only)**: `setup-hermes-native.sh` symlinks
   `$HERMES_HOME/.env` to the project `.env` instead of copying it.
 
 See `shared/single-env-file.md` for the full incident (both the reverted
@@ -265,7 +265,7 @@ linked `shared/*.md` file or the issue itself.
 | Feature | Issues | Status | Details |
 |---|---|---|---|
 | WhatsApp Cloud API / Microsoft Teams channels | #16-#20 | Implemented, not live-verified (needs the admin's own Meta/Microsoft accounts) | — |
-| Hardware auto-detection (CPU/GPU) + inference benchmark | #11, #15 | Live on Docker + native VPS; GPU path live but not verified (no matching hardware); mandatory throughput benchmark live-tested on CPU VPS and M1 Mac | `shared/hardware-sizing.md` |
+| Hardware auto-detection (CPU/GPU) + inference benchmark | #11, #15 | Live on Docker (macOS + VPS) and native macOS; GPU path live but not verified (no matching hardware); mandatory throughput benchmark live-tested on CPU VPS and M1 Mac | `shared/hardware-sizing.md` |
 | Enterprise RAG (Google Drive, Confluence, SharePoint) | #21-#26, #33 | Specced only, nothing built | issues #21-#26 |
 | Model/config evaluation harness | #28-#32 | BFCL containerized and scored (`simple_python` 54.75%, `parallel` 52.50%); throughput benchmarking and continuous re-evaluation still specced only | `shared/model-evaluation.md` |
 | Instant message-received acknowledgment | #34 | Specced only | — |

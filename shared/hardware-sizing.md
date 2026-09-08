@@ -20,7 +20,7 @@ report from an operator.
 Detecting hardware specs (vCPU count, GPU presence) is not enough — this
 repo's own incident below shows two boxes with identical specs can have
 very different real throughput. After `docker compose up -d` (or starting
-the native services) and confirming llama-swap is healthy, run:
+the native macOS services) and confirming llama-swap is healthy, run:
 
 ```bash
 # Linux VPS
@@ -100,15 +100,17 @@ reads the number back.
 
 ## What's auto-detected today
 
-`linux-x86_64-vps/provision.sh` (Docker path) and
-`linux-x86_64-vps/scripts/run-llama-swap-native.sh` (native path, issue
-#12) both run `nproc` on first `.env` creation and set `LLAMA_THREADS` to
-`nproc - 1` (leaving one core for the OS/Docker/Hermes overhead),
-overriding `.env.example`'s conservative default of `2` — see either
-script's own comments for the exact logic. The native path's fix is
-code-reviewed and lint-passed but not live-tested against a real
-from-scratch native VPS in this session (the reference VPS runs the
-Docker path).
+`linux-x86_64-vps/provision.sh` (the only VPS path, Docker) and
+`macos-arm64/scripts/run-llama-swap-native.sh` (native macOS path, issue
+#12) both run `nproc`/`sysctl` on first `.env` creation and set
+`LLAMA_THREADS` accordingly (leaving one core for the OS/Docker/Hermes
+overhead), overriding `.env.example`'s conservative default of `2` — see
+either script's own comments for the exact logic.
+
+A native (no-Docker) VPS path existed briefly (2026-09-07) and had its own
+copy of this auto-detection logic, but was abandoned before any real
+deployment used it — see `docs/adr/0001-vps-docker-only.md`. The VPS is
+Docker-only now.
 
 ## The incident this doc exists because of
 
@@ -143,7 +145,7 @@ in that order, don't assume the first hypothesis is the right one.
 
 All of #11's original sub-issues are resolved:
 
-- CPU thread auto-detection, both the Docker and native VPS paths (#12).
+- CPU thread auto-detection: VPS (Docker) and macOS (Docker + native) (#12).
 - GPU support for the Linux VPS path, all three vendors (#13) — see
   [`gpu-setup.md`](gpu-setup.md); implemented but not live-verified, no
   matching hardware available to test against.

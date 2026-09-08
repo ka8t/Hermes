@@ -204,10 +204,10 @@ endpoint and raises its stream-stale-timeout ceiling to 900 seconds (from a
 prefill can genuinely take longer than 900s to produce its first token. When
 that happens, the logs show `Stream drop on attempt N/3 — retrying` with
 `bytes=0 chunks=0` (confirmed in this repo's own VPS testing, 2026-09-03),
-and after 3 failed attempts the request is dropped entirely. Both VPS config
-templates in this repo (`linux-x86_64-vps/config/config.yaml.example` and
-`scripts/setup-hermes-native.sh`) already set `agent.local_stream_stale_timeout:
-3600` to cover this; if you're not using one of those, add it to
+and after 3 failed attempts the request is dropped entirely. This repo's VPS
+config template (`linux-x86_64-vps/config/config.yaml.example`) already sets
+`agent.local_stream_stale_timeout: 3600` to cover this; if you're not using
+that, add it to
 `config.yaml` yourself (or set the `HERMES_LOCAL_STREAM_STALE_TIMEOUT` env
 var), sized above your own measured prefill time (`hermes prompt-size`
 divided by your model's measured tokens/second).

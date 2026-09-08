@@ -15,7 +15,7 @@ detail behind each line.
 **Live and tested**
 - Real Telegram bot, end-to-end, on your own hardware — no cloud API key, nothing leaves your machine
 - Local inference via [llama.cpp](https://github.com/ggml-org/llama.cpp) + [llama-swap](https://github.com/mostlygeek/llama-swap) — hot-swap models, Metal (Mac) or CPU (VPS)
-- Docker **or** fully-native path on both platforms, your choice
+- Docker **or** fully-native path on macOS; Docker-only on the VPS
 - Guided agent creation — describe an agent in plain language, get a working profile back
 - Enterprise-safe default — every destructive action needs an explicit human yes
 - Real, measured tool-calling scores for the default model ([BFCL](docs/GLOSSARY.md#bfcl): 54.75% / 52.50%, not a vendor claim)
@@ -75,13 +75,17 @@ between them so you can list more than one model and switch between them
 from inside Hermes, rather than being locked to whatever was configured at
 install time.
 
-Two complete configurations, independent from each other, **each with both
-a Docker path and a native (no-Docker-at-all) path** for every component:
+Two complete configurations, independent from each other:
 
 | Configuration | Where | Model serving | Hermes | Guide |
 |---|---|---|---|---|
 | **macOS ARM64** | An Apple Silicon Mac | native (Metal acceleration) — same either way | Docker (`linux/arm64`) *or* native | [`macos-arm64/`](macos-arm64/) |
-| **Linux x86-64** | A rented [VPS](docs/GLOSSARY.md#vps) | Docker (CPU) *or* native | Docker (`linux/amd64`) *or* native | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
+| **Linux x86-64** | A rented [VPS](docs/GLOSSARY.md#vps) | Docker (CPU) | Docker (`linux/amd64`) | [`linux-x86_64-vps/`](linux-x86_64-vps/) |
+
+macOS offers both a Docker path and a native (no-Docker-at-all) path for
+Hermes itself. The VPS is Docker-only — a native VPS path was tried and
+abandoned before any real deployment used it; see
+[`docs/adr/0001-vps-docker-only.md`](docs/adr/0001-vps-docker-only.md).
 
 Both wire Hermes to Telegram (see
 [`shared/telegram-setup.md`](shared/telegram-setup.md)), ship one model by
@@ -141,18 +145,18 @@ Phone (Telegram)
 Phone (Telegram)
 ```
 
-## Why native on Mac but Docker by default on the VPS?
+## Why native on Mac but Docker-only on the VPS?
 
 Docker Desktop for Mac cannot expose the Metal [GPU](docs/GLOSSARY.md#gpu--gpu-layers--offload) to a container — running
 `llama-server` inside it would fall back to CPU-only inference. On a Mac,
 llama-swap and the `llama-server` it spawns therefore always run natively
 (full Metal access), while Hermes itself can go either way (Docker by
-default; native is documented too, see each platform's README). On a
+default; native is documented too, see `macos-arm64/README.md`). On a
 regular Linux VPS (no dedicated GPU), that distinction doesn't apply —
 Docker Compose is the simpler default for everything, model serving
-included — but a fully native path (no Docker anywhere) is documented as an
-alternative for both platforms, for anyone who'd rather not run Docker at
-all.
+included — so the VPS supports Docker only. See
+[`docs/adr/0001-vps-docker-only.md`](docs/adr/0001-vps-docker-only.md) for
+why a native VPS path isn't offered.
 
 ## Why these defaults?
 
@@ -192,8 +196,8 @@ cd linux-x86_64-vps && cat README.md
 Hermes/
 ├── macos-arm64/          # native llama-swap + llama.cpp (Metal); Hermes in Docker or native
 │   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
-├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes: Docker Compose or fully native
-│   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
+├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes, all via Docker Compose
+│   └── scripts/            # download/run scripts
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
 ├── eval/                 # model/hardware evaluation: BFCL + llama-bench (see eval/README.md)
@@ -202,6 +206,7 @@ Hermes/
 ```
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components, deployment topologies, message flow, and what's specced vs. live
+- [`docs/adr/`](docs/adr/) — architecture decision records (why, not just what — created lazily as decisions are made)
 - [`docs/GLOSSARY.md`](docs/GLOSSARY.md) — acronyms and technical terms used across this repo's docs
 - [`shared/telegram-setup.md`](shared/telegram-setup.md) — bot creation, environment variables
 - [`shared/single-env-file.md`](shared/single-env-file.md) — why there's exactly one `.env` per platform, not a separate copy under `data/`/`~/.hermes`

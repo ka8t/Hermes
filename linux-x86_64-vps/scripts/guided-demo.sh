@@ -5,22 +5,12 @@
 # agent creation via the bundled clarify-agent-intent/build-agent-from-intent
 # skills). Called from provision.sh's interactive flow; also runnable
 # standalone once a deployment is already up.
-#
-# HERMES_RUN_MODE: "docker" (default) or "native" — set by provision.sh
-# based on what the user chose there (mirrors macos-arm64/'s pattern, #76
-# follow-up). Determines both how `hermes` is invoked and where state.db
-# lives.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-HERMES_RUN_MODE="${HERMES_RUN_MODE:-docker}"
 DEMO_PROMPT="Create an agent that watches a subreddit for AI news and messages me when something important comes up"
 
-if [ "${HERMES_RUN_MODE}" = "native" ]; then
-  hermes_cmd() { hermes "$@"; }
-else
-  hermes_cmd() { docker compose exec -T hermes hermes "$@"; }
-fi
+hermes_cmd() { docker compose exec -T hermes hermes "$@"; }
 
 echo ""
 echo "==> Let's try it. Hermes builds things for you just by describing what"
@@ -97,11 +87,7 @@ row = cur.fetchone()
 print(row[0] if row else "")
 '
     for _ in $(seq 1 90); do
-      if [ "${HERMES_RUN_MODE}" = "native" ]; then
-        REPLY="$(python3 -c "${STATE_DB_QUERY}" "$HOME/.hermes/state.db" "${START_TS}" 2>/dev/null || true)"
-      else
-        REPLY="$(docker compose exec -T hermes python3 -c "${STATE_DB_QUERY}" /opt/data/state.db "${START_TS}" 2>/dev/null || true)"
-      fi
+      REPLY="$(docker compose exec -T hermes python3 -c "${STATE_DB_QUERY}" /opt/data/state.db "${START_TS}" 2>/dev/null || true)"
       if [ -n "${REPLY}" ]; then
         report_result "${REPLY}"
         FOUND=1
@@ -113,8 +99,7 @@ print(row[0] if row else "")
       echo ""
       echo "!! No reply yet after 45 minutes — that's longer than the documented"
       echo "!! worst case. Check: docker compose logs --since 45m hermes | grep -i telegram"
-      echo "!! (or, native: hermes gateway status) and see"
-      echo "!! ../shared/telegram-setup.md's troubleshooting section."
+      echo "!! and see ../shared/telegram-setup.md's troubleshooting section."
     fi
     ;;
 esac

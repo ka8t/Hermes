@@ -8,8 +8,8 @@
 # overwrites the template profile's config and skills with the current
 # repo content, so the template never drifts from what's checked in.
 #
-# Docker-only (this repo's VPS default path). For the native VPS path,
-# run the equivalent commands against your own hermes install directly.
+# Docker-only — this platform's only supported path, see
+# ../../docs/adr/0001-vps-docker-only.md.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

@@ -84,9 +84,11 @@ approve` for the pairing-code flow), a human decision made before
 manage.
 
 This is currently **Docker-only, on the VPS configuration**
-([`linux-x86_64-vps/`](../linux-x86_64-vps/)). The macOS configuration and
-both platforms' native (no-Docker) paths don't yet have an equivalent —
-see each platform's README, "Scripts reference".
+([`linux-x86_64-vps/`](../linux-x86_64-vps/)) — which happens to be that
+platform's only supported path (see
+`../docs/adr/0001-vps-docker-only.md`). The macOS configuration, whether
+Docker or native, doesn't yet have an equivalent — see that platform's
+README, "Scripts reference".
 
 `provision-user.sh` isn't restricted to Telegram — `gateway.profile_routes`
 routes any platform Hermes's gateway supports. WhatsApp and Microsoft

@@ -3,12 +3,13 @@
 See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
 
 **Status: fixed everywhere** — macOS (Docker and native) and the VPS
-(Docker and native). The VPS Docker path took two attempts: a direct
-bind-mount (like macOS) broke live production within seconds and was
-reverted; a symlink-based approach fixed it properly. See "Why the VPS
-Docker path needed a different mechanism" below — it's a real platform
-difference worth understanding before touching either compose file
-again, not just history.
+(Docker — the only supported VPS path, see
+`docs/adr/0001-vps-docker-only.md`). The VPS Docker path took two
+attempts: a direct bind-mount (like macOS) broke live production within
+seconds and was reverted; a symlink-based approach fixed it properly. See
+"Why the VPS Docker path needed a different mechanism" below — it's a
+real platform difference worth understanding before touching either
+compose file again, not just history.
 
 Where it's fixed: exactly **one** `.env` file at the project root
 (`macos-arm64/.env` or `linux-x86_64-vps/.env`) — both Docker Compose's
@@ -72,8 +73,8 @@ special case. Verified live on the Mac deployment, 2026-09-07:
   `.env` still owned `mac:staff`, mode `600` — no ownership change, no
   lockout. Contrast with the VPS below.
 
-**Native mode, both platforms**: `setup-hermes-native.sh` symlinks
-instead of copying:
+**Native mode (macOS)**: `setup-hermes-native.sh` symlinks instead of
+copying:
 
 ```bash
 ln -s "$(pwd)/.env" "${HERMES_HOME}/.env"

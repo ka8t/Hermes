@@ -37,7 +37,6 @@ Telegram messages.
 - [Verification](#verification)
 - [Silent-failure watchdog (optional)](#silent-failure-watchdog-optional)
 - [Common operations](#common-operations)
-- [Native alternative (no Docker at all)](#native-alternative-no-docker-at-all)
 - [Managing models](#managing-models)
 - [Scripts reference](#scripts-reference)
 - [Troubleshooting](#troubleshooting)
@@ -47,7 +46,7 @@ Telegram messages.
 
 - An Ubuntu 22.04+ VPS (x86-64), at least 8 GB of RAM for a 7B model in `Q4_K_M`.
 - Root/sudo access over SSH.
-- Docker Engine + Compose plugin (installed by `provision.sh` if missing) — skip it entirely with the [native alternative](#native-alternative-no-docker-at-all) below.
+- Docker Engine + Compose plugin (installed by `provision.sh` if missing) — this platform is Docker-only, see [`../docs/adr/0001-vps-docker-only.md`](../docs/adr/0001-vps-docker-only.md) for why. Want no Docker at all? Use [`../macos-arm64/`](../macos-arm64/) instead, which still offers a native path.
 - A Telegram bot — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md).
 - No GPU required — this path is CPU-only by default. If your VPS does have
   an NVIDIA GPU, see [`../shared/gpu-setup.md`](../shared/gpu-setup.md)
@@ -175,48 +174,6 @@ docker compose exec hermes hermes backup -o /opt/data/backup-$(date +%Y%m%d).tar
 docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 ```
 
-## Native alternative (no Docker at all)
-
-Everything above runs in Docker Compose. If you'd rather not use Docker on
-this VPS at all, both `llama-swap`/`llama-server` and Hermes can run
-natively instead, via the same official binaries and installer this repo
-already relies on elsewhere. `./provision.sh` now offers this interactively
-(it asks "Docker or native?" partway through, added 2026-09-07) — the steps
-below are the same thing done by hand, for reference or a non-interactive
-run:
-
-```bash
-# llama-swap + llama-server, natively (mirrors macos-arm64/'s native path)
-[ -f .env ] || cp .env.example .env           # if you never ran provision.sh, .env doesn't exist yet
-./scripts/download-prebuilt-llama-server.sh   # prints a path; paste it into .env as LLAMA_SERVER_BIN
-./scripts/download-llama-swap.sh              # fetches llama-swap itself
-mkdir -p models data
-# download a model into ./models/ — see ../shared/model-notes.md
-cp config/models.yaml.example.native data/models.yaml
-./scripts/run-llama-swap-native.sh            # also auto-sizes LLAMA_THREADS to your real core count
-                                               # (issue #12) if .env was just created; keep running, or
-                                               # install as a systemd service:
-#   sudo cp scripts/llama-swap.service.example /etc/systemd/system/llama-swap.service
-#   # edit the REPLACE_WITH_REPO_PATH occurrences, then:
-#   sudo systemctl daemon-reload && sudo systemctl enable --now llama-swap
-
-# Hermes, natively
-./scripts/install-hermes-native.sh    # curl | bash the official installer, idempotent
-./scripts/setup-hermes-native.sh      # seeds ~/.hermes with this repo's config, approvals default, and skills
-./scripts/patch-native-hermes.sh      # applies the #48/#50/#75/#76 fixes the Docker image bakes in
-hermes gateway install                # sets up its own systemd user service
-hermes gateway start
-hermes gateway setup                  # once, to wire up Telegram
-```
-
-`setup-hermes-native.sh` never overwrites an existing `~/.hermes/config.yaml`
-or `.env` — same "seed once" rule Hermes's own Docker image follows. The
-seeded `config.yaml` points at `http://127.0.0.1:8080/v1` — plain localhost,
-since both processes now run directly on this VPS with no Docker networking
-involved. Verification, troubleshooting, and everything else on this page
-apply the same way — run `hermes doctor` / `hermes gateway status` directly
-instead of through `docker compose exec hermes`.
-
 ## Managing models
 
 Edit `data/models.yaml` to add, change, or remove a model — the container is
@@ -230,9 +187,7 @@ Every script under `scripts/` starts with `cd "$(dirname "${BASH_SOURCE[0]}")/..
 so it relocates itself to this directory (`linux-x86_64-vps/`) regardless of
 your current working directory — run any of them as `./scripts/<name>.sh`
 from here, or by relative/absolute path from anywhere else (a cron job, a
-systemd unit's `ExecStart`, a CI step). The one exception is
-`install-hermes-native.sh`, which has no directory dependency at all — it
-installs to `$HOME` and can run from literally anywhere.
+systemd unit's `ExecStart`, a CI step).
 
 **`provision.sh`** (repo root of this directory, not under `scripts/`) — run
 **once, as root**, on a fresh VPS. No parameters. Installs Docker Engine +
@@ -284,44 +239,6 @@ warning that the latency estimate was skipped. Provisioning is not
 considered done until this passes — see
 [`../shared/hardware-sizing.md`](../shared/hardware-sizing.md) for the
 thresholds' calibration.
-
-**`scripts/install-hermes-native.sh`** — native path only. No parameters.
-Idempotent (does nothing if `hermes` is already on `PATH`); otherwise runs
-the official installer.
-
-**`scripts/setup-hermes-native.sh`** — native path only. No parameters
-(optional env var: `HERMES_HOME`, default `~/.hermes`). Requires `hermes` on
-`PATH` (run `install-hermes-native.sh` first). Never overwrites an existing
-`config.yaml` or `.env` under `HERMES_HOME` — seeds them only if missing —
-and always re-syncs `skills/ka8t-hermes/agent-creation/` from this repo.
-
-**`scripts/patch-native-hermes.sh`** — native path only, added 2026-09-07.
-No parameters. Applies the same fixes the Docker image bakes in at build
-time (#48, #50, #75, #76 — see `../docker/Dockerfile`'s comments for each)
-directly to a native install's `SOUL.md` and `web_tools.py`, since the
-official installer has no equivalent step. Idempotent — safe to re-run
-after `hermes update`. Mirrors `../macos-arm64/scripts/patch-native-hermes.sh`
-exactly.
-
-**`scripts/download-prebuilt-llama-server.sh`** — native path only. No
-parameters. Downloads the latest official `bin-ubuntu-x64.tar.gz` release
-asset from `ggml-org/llama.cpp` into `./vendor/llama.cpp-prebuilt/current/`
-and prints the resulting `llama-server` binary's path on stdout — paste that
-path into `.env` as `LLAMA_SERVER_BIN`. Skips the download if the archive is
-already present.
-
-**`scripts/download-llama-swap.sh`** — native path only. No parameters.
-Downloads the latest stable `linux_amd64` release of `llama-swap` into
-`./vendor/llama-swap/` and prints the binary's path on stdout. Called
-automatically by `run-llama-swap-native.sh` — you don't need to run it
-yourself unless you want the binary path in isolation.
-
-**`scripts/run-llama-swap-native.sh`** — native path only. No parameters
-(reads `LLAMA_PORT`, `LLAMA_SERVER_BIN`, `MODEL_FILE`, `LLAMA_CTX_SIZE`,
-`LLAMA_THREADS` from `.env`). Requires `data/models.yaml` (copy from
-`config/models.yaml.example.native`) and `LLAMA_SERVER_BIN` set to an
-executable. Keeps running in the foreground — install as a systemd service
-with `scripts/llama-swap.service.example` to run it unattended.
 
 **`scripts/silent-failure-watchdog.sh`** — no required parameters (optional
 env var: `HERMES_MODE`, `docker` (default) or `native`, matching

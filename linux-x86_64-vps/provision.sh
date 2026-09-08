@@ -135,84 +135,22 @@ echo "    anyone who can reach the port."
 ./scripts/configure-env.sh
 
 echo ""
-read -r -p "Run Hermes in Docker, or fully native (no Docker)? [docker/native, default docker] " HERMES_MODE_CHOICE
-HERMES_MODE_CHOICE="${HERMES_MODE_CHOICE:-docker}"
+echo "==> Starting Hermes and llama-swap."
+docker compose up -d
 
-case "${HERMES_MODE_CHOICE}" in
-  native)
-    # Native mode runs BOTH llama-swap and Hermes directly on this VPS, no
-    # Docker at all — unlike macOS, where llama-swap/llama-server always run
-    # natively (Metal) regardless of Hermes's own Docker-vs-native choice.
-    # See README.md's "Native alternative (no Docker at all)" for the same
-    # sequence done by hand.
-    echo ""
-    echo "==> Setting up llama-swap + llama-server natively."
-    CURRENT_LLAMA_SERVER_BIN="$(grep -E '^LLAMA_SERVER_BIN=' .env | cut -d= -f2-)"
-    if [ -n "${CURRENT_LLAMA_SERVER_BIN}" ] && [ -x "${CURRENT_LLAMA_SERVER_BIN}" ]; then
-      echo "==> llama-server already resolved: ${CURRENT_LLAMA_SERVER_BIN}"
-    else
-      LLAMA_SERVER_BIN="$(./scripts/download-prebuilt-llama-server.sh | tail -n1)"
-      sed -i "s|^LLAMA_SERVER_BIN=.*|LLAMA_SERVER_BIN=${LLAMA_SERVER_BIN}|" .env
-      if ! grep -q '^LLAMA_SERVER_BIN=' .env; then
-        printf '\nLLAMA_SERVER_BIN=%s\n' "${LLAMA_SERVER_BIN}" >> .env
-      fi
-      echo "==> LLAMA_SERVER_BIN set in .env: ${LLAMA_SERVER_BIN}"
-    fi
-    # data/models.yaml was seeded from the Docker-oriented template earlier
-    # in this script (before the mode choice was known) — native mode needs
-    # its own template instead (no container-internal paths).
-    cp -f config/models.yaml.example.native data/models.yaml
-    echo "==> data/models.yaml switched to the native template"
-    ./scripts/download-llama-swap.sh >/dev/null
-
-    echo ""
-    echo "==> Installing llama-swap as a persistent systemd service."
-    REPO_PATH="$(pwd)"
-    sed "s|REPLACE_WITH_REPO_PATH|${REPO_PATH}|g" scripts/llama-swap.service.example \
-      > /etc/systemd/system/llama-swap.service
-    systemctl daemon-reload
-    systemctl enable --now llama-swap
-    LLAMA_PORT="$(grep -E '^LLAMA_PORT=' .env | cut -d= -f2-)"
-    LLAMA_PORT="${LLAMA_PORT:-8080}"
-    echo "==> Waiting for llama-swap to respond..."
-    for _ in $(seq 1 60); do
-      if curl -sf "http://127.0.0.1:${LLAMA_PORT}/health" >/dev/null 2>&1; then
-        echo "==> llama-swap is up."
-        break
-      fi
-      sleep 3
-    done
-
-    echo ""
-    echo "==> Installing Hermes natively."
-    ./scripts/install-hermes-native.sh
-    ./scripts/setup-hermes-native.sh
-    ./scripts/patch-native-hermes.sh
-    hermes gateway install
-    hermes gateway start
-    GATEWAY_SETUP_CMD="hermes gateway setup"
-    VERIFY_CMD="./scripts/verify-inference.sh"
-    ;;
-  *)
-    echo ""
-    echo "==> Starting Hermes and llama-swap."
-    docker compose up -d
-
-    echo ""
-    echo "==> Waiting for llama-swap to report healthy (loads the model into memory —"
-    echo "    can take a minute or two, but is NOT the slow part; that's the first reply)."
-    for _ in $(seq 1 60); do
-      STATUS="$(docker compose ps --format '{{.Health}}' llama-swap 2>/dev/null || true)"
-      if [ "${STATUS}" = "healthy" ]; then
-        echo "==> llama-swap is healthy."
-        break
-      fi
-      sleep 5
-    done
-    GATEWAY_SETUP_CMD="docker compose exec hermes hermes gateway setup"
-    VERIFY_CMD="./scripts/verify-inference.sh"
-    ;;
-esac
+echo ""
+echo "==> Waiting for llama-swap to report healthy (loads the model into memory —"
+echo "    can take a minute or two, but is NOT the slow part; that's the first reply)."
+for _ in $(seq 1 60); do
+  STATUS="$(docker compose ps --format '{{.Health}}' llama-swap 2>/dev/null || true)"
+  if [ "${STATUS}" = "healthy" ]; then
+    echo "==> llama-swap is healthy."
+    break
+  fi
+  sleep 5
+done
+GATEWAY_SETUP_CMD="docker compose exec hermes hermes gateway setup"
+VERIFY_CMD="./scripts/verify-inference.sh"
 
 echo ""
 read -r -p "Connect Telegram now (hermes gateway setup)? [Y/n] " TELEGRAM_REPLY
@@ -289,4 +227,4 @@ else
   esac
 fi
 
-HERMES_RUN_MODE="${HERMES_MODE_CHOICE}" ./scripts/guided-demo.sh
+./scripts/guided-demo.sh
