@@ -201,7 +201,15 @@ else
       echo "!! grant /bin/bash Full Disk Access — System Settings > Privacy &"
       echo "!! Security > Full Disk Access. See README.md's \"Silent-failure"
       echo "!! watchdog\" section for the exact steps if this fails silently."
-      REPO_PATH="$(pwd)"
+      # The plist template's paths already include a literal "macos-arm64/"
+      # segment (it's written for someone hand-copying the repo root from
+      # the README), but this script already cd'd into macos-arm64/ itself
+      # (see REPO_DIR above) — so REPO_PATH here must be the repo root, one
+      # level up from $(pwd), not $(pwd) itself. Using $(pwd) doubled the
+      # segment into .../macos-arm64/macos-arm64/... in every installed
+      # path (ProgramArguments, WorkingDirectory, StandardOut/ErrorPath),
+      # so the watchdog silently never ran. Found live, 2026-09-08.
+      REPO_PATH="$(dirname "$(pwd)")"
       sed "s|REPLACE_WITH_REPO_PATH|${REPO_PATH}|g" scripts/com.hermes.silent-failure-watchdog.plist.example \
         > ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
       launchctl load ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist
