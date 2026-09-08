@@ -200,6 +200,15 @@ to `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` /
 guarded by an existence check, so it never overwrites something you've
 already configured.
 
+**`scripts/configure-telegram.sh`** — added 2026-09-08 (issue #10). No
+parameters (requires `GATEWAY_SETUP_CMD` in the environment, set by
+`provision.sh`). If `TELEGRAM_BOT_TOKEN` in `.env` is already a real value
+(not `.env.example`'s placeholder), shows it masked
+(`...last 4 chars`) plus the current `TELEGRAM_ALLOWED_USERS` and asks
+"Reconfigure it? [y/N]" — declining leaves `.env` untouched and skips the
+wizard entirely. Otherwise (or if you say yes), prints the BotFather
+instructions and runs `hermes gateway setup`.
+
 **`scripts/build-agent-template.sh`** — Docker path only. No parameters
 (optional env var: `AGENT_TEMPLATE_PROFILE`, default `agent-template`, to
 name the template profile differently). Requires the `hermes` container

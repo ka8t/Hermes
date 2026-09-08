@@ -292,6 +292,15 @@ relative/absolute path from anywhere else (a `launchd` job's `ProgramArguments`
 included). `install-hermes-native.sh` has no directory dependency at all —
 it installs to `$HOME` and can run from literally anywhere.
 
+**`scripts/configure-telegram.sh`** — added 2026-09-08 (issue #10). No
+parameters (requires `GATEWAY_SETUP_CMD` in the environment, set by
+`provision.sh`). If `TELEGRAM_BOT_TOKEN` in `.env` is already a real value
+(not `.env.example`'s placeholder), shows it masked
+(`...last 4 chars`) plus the current `TELEGRAM_ALLOWED_USERS` and asks
+"Reconfigure it? [y/N]" — declining leaves `.env` untouched and skips the
+wizard entirely. Otherwise (or if you say yes), prints the BotFather
+instructions and runs `hermes gateway setup`.
+
 **`scripts/find-or-build-llama-server.sh`** — no parameters (optional env
 vars: `LLAMA_SERVER_BIN` to force a specific binary, `LLAMA_BUILD_FROM_SOURCE=1`
 to skip straight to a from-source build). Prints one binary path on stdout,
