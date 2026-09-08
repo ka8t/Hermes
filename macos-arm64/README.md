@@ -295,11 +295,17 @@ it installs to `$HOME` and can run from literally anywhere.
 **`scripts/configure-telegram.sh`** — added 2026-09-08 (issue #10). No
 parameters (requires `GATEWAY_SETUP_CMD` in the environment, set by
 `provision.sh`). If `TELEGRAM_BOT_TOKEN` in `.env` is already a real value
-(not `.env.example`'s placeholder), shows it masked
-(`...last 4 chars`) plus the current `TELEGRAM_ALLOWED_USERS` and asks
-"Reconfigure it? [y/N]" — declining leaves `.env` untouched and skips the
-wizard entirely. Otherwise (or if you say yes), prints the BotFather
-instructions and runs `hermes gateway setup`.
+(not `.env.example`'s placeholder), first calls Telegram's `getMe` to check
+it still resolves to a real bot (catches a bot deleted via BotFather's
+`/deletebot`, which leaves a dead token sitting in `.env` — never trusted
+blindly): if it works, shows it masked (`...last 4 chars`) plus the
+current `TELEGRAM_ALLOWED_USERS` and asks "Reconfigure it anyway? [y/N]"
+— declining leaves `.env` untouched and skips the wizard entirely; if
+Telegram rejects the token outright, skips straight to reconfiguring, no
+prompt (a dead token is never worth keeping); if `api.telegram.org` can't
+be reached at all (network issue), asks the same y/N but says plainly the
+check was unverified. Otherwise (never configured, or you say yes),
+prints the BotFather instructions and runs `hermes gateway setup`.
 
 **`scripts/find-or-build-llama-server.sh`** — no parameters (optional env
 vars: `LLAMA_SERVER_BIN` to force a specific binary, `LLAMA_BUILD_FROM_SOURCE=1`

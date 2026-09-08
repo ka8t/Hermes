@@ -31,12 +31,42 @@ if [ -n "${CURRENT_TOKEN}" ] && [ "${CURRENT_TOKEN}" != "${PLACEHOLDER_TOKEN}" ]
   # Masked, not shown in full — a bot token is a live credential, and this
   # runs in a plain terminal (scrollback, screen recordings, CI logs).
   MASKED_TOKEN="...${CURRENT_TOKEN: -4}"
-  echo "==> Telegram already configured (token ending ${MASKED_TOKEN}, allowed users: ${CURRENT_USERS:-none})."
-  read -r -p "    Reconfigure it? [y/N] " REPLY
-  case "${REPLY}" in
-    [yY]*) ;;
-    *) echo "==> Keeping existing Telegram configuration."; exit 0 ;;
-  esac
+
+  # Never trust "a non-placeholder string is in .env" as proof the bot
+  # still works — found live, 2026-09-08: deleting a bot via BotFather's
+  # /deletebot leaves its old (now-dead) token sitting in .env, and the
+  # previous version of this check would offer "Reconfigure? [y/N]"
+  # defaulting to N — pressing Enter silently kept a dead token and the
+  # gateway would fail with no clear signal why. Ask Telegram directly
+  # instead of guessing.
+  echo "==> Checking whether the configured bot (token ending ${MASKED_TOKEN}) still responds..."
+  GETME_RESPONSE="$(curl -s --max-time 10 "https://api.telegram.org/bot${CURRENT_TOKEN}/getMe" || true)"
+
+  if printf '%s' "${GETME_RESPONSE}" | grep -q '"ok":true'; then
+    echo "==> Telegram already configured and working (token ending ${MASKED_TOKEN}, allowed users: ${CURRENT_USERS:-none})."
+    read -r -p "    Reconfigure it anyway? [y/N] " REPLY
+    case "${REPLY}" in
+      [yY]*) ;;
+      *) echo "==> Keeping existing Telegram configuration."; exit 0 ;;
+    esac
+  elif [ -n "${GETME_RESPONSE}" ]; then
+    # Telegram answered, but rejected the token outright (401 Unauthorized
+    # for a deleted/revoked bot) — never worth silently keeping, so there's
+    # no y/N here: go straight to setting up a new one.
+    echo "!! The configured token no longer works: ${GETME_RESPONSE}"
+    echo "==> Setting up a new bot."
+  else
+    # curl itself failed (offline, DNS, timeout) — can't tell if the token
+    # is actually fine, so don't assume it's dead. Ask, but say plainly
+    # that this hasn't been verified.
+    echo "!! Couldn't reach api.telegram.org to verify the current token (network issue?)."
+    echo "==> Telegram already configured (token ending ${MASKED_TOKEN}, allowed users: ${CURRENT_USERS:-none}) — unverified."
+    read -r -p "    Reconfigure it? [y/N] " REPLY
+    case "${REPLY}" in
+      [yY]*) ;;
+      *) echo "==> Keeping existing Telegram configuration (unverified)."; exit 0 ;;
+    esac
+  fi
 fi
 
 echo ""
