@@ -153,6 +153,14 @@ the whole chain works: Telegram → hermes container →
 back. The first message will be slower than the rest — that's llama-swap
 cold-starting `llama-server` and loading the model into Metal.
 
+The web dashboard is available at `http://127.0.0.1:9119` (or your Mac's
+LAN IP from another device) if `HERMES_DASHBOARD=1` (the default in
+`.env.example`) — it requires the `HERMES_DASHBOARD_BASIC_AUTH_*`
+credentials from `.env`. See
+[`../shared/web-dashboard.md`](../shared/web-dashboard.md) for what it
+actually offers (chat, sessions, cron, logs, config, and more) and why to
+reconfigure rather than keep an unknown existing password on a re-run.
+
 ## Running llama-swap in the background (optional)
 
 To avoid keeping a terminal open at all times, a `launchd` service template

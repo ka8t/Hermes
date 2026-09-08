@@ -210,6 +210,7 @@ Hermes/
 - [`docs/GLOSSARY.md`](docs/GLOSSARY.md) — acronyms and technical terms used across this repo's docs
 - [`shared/telegram-setup.md`](shared/telegram-setup.md) — bot creation, environment variables
 - [`shared/single-env-file.md`](shared/single-env-file.md) — why there's exactly one `.env` per platform, not a separate copy under `data/`/`~/.hermes`
+- [`shared/web-dashboard.md`](shared/web-dashboard.md) — what the built-in web UI offers (chat, sessions, cron, logs...) and how its credentials work
 - [`shared/model-notes.md`](shared/model-notes.md) — GGUF model choice, context constraints
 - [`shared/managing-models.md`](shared/managing-models.md) — add / switch / remove models via llama-swap
 - [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md) — official binaries used, per platform

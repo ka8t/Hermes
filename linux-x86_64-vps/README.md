@@ -136,7 +136,10 @@ The web dashboard is available at `http://<vps-ip>:9119` if
 dashboard refuses to start without them once reachable from outside
 `127.0.0.1`, which it is via the Docker port mapping); still put it behind a
 firewall or an SSH tunnel as a second layer, don't rely on the password
-alone facing the open internet.
+alone facing the open internet. See
+[`../shared/web-dashboard.md`](../shared/web-dashboard.md) for what it
+actually offers (chat, sessions, cron, logs, config, and more) and why to
+reconfigure rather than keep an unknown existing password on a re-run.
 
 ## Silent-failure watchdog (optional)
 
