@@ -55,6 +55,37 @@ if [ -n "${CURRENT_TOKEN}" ] && [ "${CURRENT_TOKEN}" != "${PLACEHOLDER_TOKEN}" ]
     # no y/N here: go straight to setting up a new one.
     echo "!! The configured token no longer works: ${GETME_RESPONSE}"
     echo "==> Setting up a new bot."
+
+    # Blank it in .env before handing off to `hermes gateway setup` below.
+    # Found live, 2026-09-08: that wizard has its OWN "already configured?"
+    # check (get_env_value(TELEGRAM_BOT_TOKEN) non-empty -> "Reconfigure?
+    # [y/N]", defaulting to N) -- completely unaware of the getMe check
+    # just done above. Left as-is, a user who presses Enter out of habit
+    # keeps the dead token, the gateway restarts anyway, and everything
+    # downstream (guided-demo.sh) silently waits for a reply that will
+    # never come. An empty TELEGRAM_BOT_TOKEN makes the wizard's own check
+    # see "not configured" and skip straight to prompting for a new one --
+    # no second, easy-to-default-through prompt for the same decision.
+    sed -i '' "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=|" .env
+
+    # Docker fixes a container's environment variables at creation time
+    # (../shared/telegram-setup.md) -- the blanked value above only
+    # reaches the wizard if the container is recreated first, and only
+    # matters when GATEWAY_SETUP_CMD actually runs inside a container
+    # (Docker mode): native mode's `hermes gateway setup` reads .env
+    # directly, no container env to go stale. Without this in Docker
+    # mode, `docker compose exec` below runs inside the OLD container,
+    # whose os.environ still holds the dead token -- the wizard's own
+    # get_env_value() check finds it there before ever falling through to
+    # read the (already-blanked) file, silently defeating the fix above.
+    # Found live on the VPS, 2026-09-08 (macOS Docker mode shares the bug).
+    case "${GATEWAY_SETUP_CMD}" in
+      *"docker compose"*)
+        echo "==> Recreating the container so the blanked token above is what"
+        echo "    the wizard actually sees (Docker fixes env vars at creation)."
+        docker compose up -d
+        ;;
+    esac
   else
     # curl itself failed (offline, DNS, timeout) — can't tell if the token
     # is actually fine, so don't assume it's dead. Ask, but say plainly
