@@ -69,6 +69,11 @@ username — `Hemes` vs `Hermes` — silently finds nothing rather than erroring
 
 ## 3. Fill in `.env`
 
+There is exactly one `.env` per platform — the project root one — whether
+you edit it by hand or `hermes gateway setup` (step 4 below) writes to it
+for you. See [`single-env-file.md`](single-env-file.md) if you're curious
+how that's guaranteed.
+
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TELEGRAM_ALLOWED_USERS=123456789

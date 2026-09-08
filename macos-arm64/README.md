@@ -90,7 +90,12 @@ Edit `.env`: at minimum `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`
 (details in [`../shared/telegram-setup.md`](../shared/telegram-setup.md)), and
 `HERMES_DASHBOARD_BASIC_AUTH_USERNAME`/`_PASSWORD` (generate a real password
 with `openssl rand -base64 24` — the dashboard refuses to start without one,
-see [Verification](#verification)).
+see [Verification](#verification)). This `.env` — right here at the project
+root — is the only one: hermes-agent's own setup wizards (`hermes gateway
+setup`, etc.) write back into this exact file too, not a separate copy. See
+[`../shared/single-env-file.md`](../shared/single-env-file.md) if you're
+curious how, since hermes-agent doesn't know about this file by name — this
+project bind-mounts (Docker) or symlinks (native) its own path onto it.
 
 ```bash
 ./scripts/download-prebuilt-llama-server.sh   # prints a path; paste it into .env as LLAMA_SERVER_BIN

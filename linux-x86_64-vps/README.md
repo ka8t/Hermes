@@ -77,7 +77,13 @@ to add more).
    [`../shared/telegram-setup.md`](../shared/telegram-setup.md)), and
    `HERMES_DASHBOARD_BASIC_AUTH_USERNAME`/`_PASSWORD` (generate a real
    password with `openssl rand -base64 24` — the dashboard refuses to start
-   without one, see [Verification](#verification)).
+   without one, see [Verification](#verification)). This `.env` — right here
+   at the project root — is the only one: hermes-agent's own setup wizards
+   (`hermes gateway setup`, etc.) write back into this exact file too, not a
+   separate copy under `data/`. See
+   [`../shared/single-env-file.md`](../shared/single-env-file.md) for how
+   (a symlink in Docker mode, not a direct bind-mount — different from
+   macOS, see that doc for why).
 2. **`data/config.yaml`** is already prepared (copied from
    `config/config.yaml.example`): it points Hermes at
    `http://llama-swap:8080/v1`, the neighboring service's name in
