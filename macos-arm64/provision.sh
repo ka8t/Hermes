@@ -39,7 +39,34 @@ if [ ! -f data/models.yaml ]; then
 fi
 
 CURRENT_LLAMA_SERVER_BIN="$(grep -E '^LLAMA_SERVER_BIN=' .env | cut -d= -f2-)"
+
+# -x alone (permission bits) doesn't catch macOS's "Optimize Mac Storage"
+# (iCloud Drive) evicting this exact binary's content to 0 bytes while
+# ls/stat still report its original size — confirmed live this session
+# (see README.md's troubleshooting table). -s (non-empty) does. Try to
+# re-materialize via brctl before falling back to a fresh download.
+LLAMA_SERVER_BIN_USABLE=0
 if [ -n "${CURRENT_LLAMA_SERVER_BIN}" ] && [ -x "${CURRENT_LLAMA_SERVER_BIN}" ]; then
+  if [ -s "${CURRENT_LLAMA_SERVER_BIN}" ]; then
+    LLAMA_SERVER_BIN_USABLE=1
+  else
+    echo "!! ${CURRENT_LLAMA_SERVER_BIN} exists and is executable but EMPTY"
+    echo "!! (0 bytes) -- likely iCloud Drive eviction, not a real deletion."
+    if command -v brctl >/dev/null 2>&1; then
+      echo "==> Attempting to re-materialize via 'brctl download'..."
+      brctl download "${CURRENT_LLAMA_SERVER_BIN}" >/dev/null 2>&1 || true
+      sleep 2
+    fi
+    if [ -s "${CURRENT_LLAMA_SERVER_BIN}" ]; then
+      echo "==> Recovered."
+      LLAMA_SERVER_BIN_USABLE=1
+    else
+      echo "==> Still empty -- treating as missing, re-downloading below."
+    fi
+  fi
+fi
+
+if [ "${LLAMA_SERVER_BIN_USABLE}" = 1 ]; then
   echo "==> llama-server already resolved: ${CURRENT_LLAMA_SERVER_BIN}"
 else
   echo ""

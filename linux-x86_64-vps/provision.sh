@@ -96,13 +96,27 @@ MODEL_FILE="${MODEL_FILE:-Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf}"
 MODEL_REPO="$(grep -E '^MODEL_REPO=' .env | cut -d= -f2)"
 MODEL_REPO="${MODEL_REPO:-bartowski/Meta-Llama-3.1-8B-Instruct-GGUF}"
 
-if [ ! -f "models/${MODEL_FILE}" ]; then
+MODEL_PATH="models/${MODEL_FILE}"
+# -f alone doesn't guarantee a *complete* download -- an interrupted curl
+# (SSH drop, disk full) used to be able to leave a truncated file directly
+# at this final path, which a later run would then trust as "already
+# present" forever. -s (non-empty) catches the worst case (0 bytes); the
+# .part-then-rename below prevents a partial file from ever landing at
+# the final path in the first place, on this run or any future one.
+if [ -f "${MODEL_PATH}" ] && [ ! -s "${MODEL_PATH}" ]; then
+  echo "!! ${MODEL_PATH} exists but is empty (0 bytes) -- an earlier"
+  echo "!! download likely didn't finish. Re-downloading."
+  rm -f "${MODEL_PATH}"
+fi
+
+if [ ! -f "${MODEL_PATH}" ]; then
   echo "==> Downloading model ${MODEL_FILE} (see ../shared/model-notes.md to change models)"
   curl -fL --progress-bar \
     "https://huggingface.co/${MODEL_REPO}/resolve/main/${MODEL_FILE}" \
-    -o "models/${MODEL_FILE}"
+    -o "${MODEL_PATH}.part"
+  mv "${MODEL_PATH}.part" "${MODEL_PATH}"
 else
-  echo "==> Model already present: models/${MODEL_FILE}"
+  echo "==> Model already present: ${MODEL_PATH}"
 fi
 
 echo ""

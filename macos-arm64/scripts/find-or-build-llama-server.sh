@@ -10,22 +10,50 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# 1. Explicit override
-if [ -n "${LLAMA_SERVER_BIN:-}" ] && [ -x "${LLAMA_SERVER_BIN}" ]; then
-  echo "${LLAMA_SERVER_BIN}"
-  exit 0
+# A binary can have -x set even when macOS's "Optimize Mac Storage" (iCloud
+# Drive) has evicted its actual content to 0 bytes -- confirmed live this
+# session, on this exact file (see README.md's troubleshooting table). -x
+# alone (permission bits) never catches this; -s (non-empty) does. Try
+# brctl to re-materialize before giving up on an otherwise-good candidate.
+usable_binary() {
+  local path="$1"
+  [ -x "${path}" ] || return 1
+  if [ -s "${path}" ]; then
+    return 0
+  fi
+  echo "!! ${path} exists and is executable but EMPTY (0 bytes) -- likely" >&2
+  echo "!! iCloud Drive eviction (see this README's troubleshooting table)." >&2
+  if command -v brctl >/dev/null 2>&1; then
+    echo "==> Attempting to re-materialize via 'brctl download'..." >&2
+    brctl download "${path}" >/dev/null 2>&1 || true
+    sleep 2
+  fi
+  [ -s "${path}" ]
+}
+
+# 1. Explicit override — an explicit path is deliberate user intent, so a
+# broken one fails loudly instead of silently substituting a different
+# binary underneath the caller.
+if [ -n "${LLAMA_SERVER_BIN:-}" ]; then
+  if usable_binary "${LLAMA_SERVER_BIN}"; then
+    echo "${LLAMA_SERVER_BIN}"
+    exit 0
+  fi
+  echo "!! LLAMA_SERVER_BIN=${LLAMA_SERVER_BIN} is set but not a usable binary" \
+       "(missing, not executable, or empty and unrecoverable)." >&2
+  exit 1
 fi
 
 # 2. A llama.cpp clone/build already present elsewhere on this machine
 #    (convention used by this project: ~/Documents/Code/llama.cpp)
 CANDIDATE="${HOME}/Documents/Code/llama.cpp/build/bin/llama-server"
-if [ -x "${CANDIDATE}" ]; then
+if usable_binary "${CANDIDATE}"; then
   echo "${CANDIDATE}"
   exit 0
 fi
 
 # 3. Installed via Homebrew (`brew install llama.cpp`)
-if command -v llama-server >/dev/null 2>&1; then
+if command -v llama-server >/dev/null 2>&1 && usable_binary "$(command -v llama-server)"; then
   command -v llama-server
   exit 0
 fi
