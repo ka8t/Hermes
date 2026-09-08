@@ -14,6 +14,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 HERMES_RUN_MODE="${HERMES_RUN_MODE:-docker}"
 DEMO_PROMPT="Create an agent that watches a subreddit for AI news and messages me when something important comes up"
 
+if [ "${HERMES_RUN_MODE}" = "native" ]; then
+  hermes_cmd() { hermes "$@"; }
+else
+  hermes_cmd() { docker compose exec -T hermes hermes "$@"; }
+fi
+
 echo ""
 echo "==> Let's try it. Hermes builds things for you just by describing what"
 echo "    you want in plain language — that's the actual point of this"
@@ -29,15 +35,40 @@ echo "==> On Metal, the first reply is seconds to a couple minutes — nowhere"
 echo "    near the 25-40+ minutes a CPU-only VPS needs for the same prompt."
 echo ""
 
+# Real-success check (issue #76 follow-up, 2026-09-07): a non-empty reply is
+# not proof anything was actually built — live testing this same session
+# found the model can reply with a fabricated "done" claim, or an internal
+# marker leaking into the text, while never calling a tool at all. The demo
+# prompt asks for a scheduled watcher, so a genuine success registers a new
+# cron job — check that directly instead of trusting the reply text alone.
+CRON_BEFORE="$(hermes_cmd cron list --all 2>/dev/null || true)"
+report_result() {
+  local reply="$1"
+  local cron_after
+  cron_after="$(hermes_cmd cron list --all 2>/dev/null || true)"
+  echo ""
+  echo "==> Reply received:"
+  echo ""
+  echo "${reply}"
+  echo ""
+  if [ "${cron_after}" != "${CRON_BEFORE}" ] && ! printf '%s' "${cron_after}" | grep -q "No scheduled jobs"; then
+    echo "==> Confirmed: a new scheduled job showed up in 'hermes cron list' —"
+    echo "    the agent was actually created, not just described."
+  else
+    echo "!! No new scheduled job showed up in 'hermes cron list' — the reply"
+    echo "!! above may describe or explain the task instead of actually having"
+    echo "!! built it. Worth checking yourself: hermes cron list (or docker"
+    echo "!! compose exec hermes hermes cron list). See issues #75/#76 on"
+    echo "!! github.com/ka8t/Hermes if this reproduces consistently."
+  fi
+}
+
 case "${CHANNEL_CHOICE}" in
   2)
     echo "==> Sending: \"${DEMO_PROMPT}\""
     echo ""
-    if [ "${HERMES_RUN_MODE}" = "native" ]; then
-      hermes -z "${DEMO_PROMPT}"
-    else
-      docker compose exec hermes hermes -z "${DEMO_PROMPT}"
-    fi
+    REPLY="$(hermes_cmd -z "${DEMO_PROMPT}")"
+    report_result "${REPLY}"
     ;;
   *)
     echo "==> Send your Telegram bot this exact message now:"
@@ -67,10 +98,7 @@ print(row[0] if row else "")
         REPLY="$(docker compose exec -T hermes python3 -c "${STATE_DB_QUERY}" /opt/data/state.db "${START_TS}" 2>/dev/null || true)"
       fi
       if [ -n "${REPLY}" ]; then
-        echo ""
-        echo "==> Reply received:"
-        echo ""
-        echo "${REPLY}"
+        report_result "${REPLY}"
         FOUND=1
         break
       fi

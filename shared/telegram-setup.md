@@ -146,6 +146,19 @@ guides ("Silent-failure watchdog" in
 optional watchdog that detects this and sends the affected user a fallback
 message directly.
 
+**A session that keeps replying with nonsense — send `/new`**: confirmed
+live, 2026-09-07 ([issue #74](https://github.com/ka8t/Hermes/issues/74)):
+a network hiccup (a Telegram adapter reconnect, or an inference API retry)
+can corrupt a session so that every subsequent reply — regardless of what
+you actually send — repeats the same broken text (in the confirmed case,
+an internal prompt-construction marker leaking verbatim into the reply).
+A container/gateway restart does **not** clear this — it's stored in the
+conversation history on disk, not in-process memory. Send `/new` (or
+`/reset`) directly to the bot in the affected chat: this starts a genuinely
+fresh session for that thread (`reset_session()` in hermes-agent's own
+`gateway/session.py`), leaving the poisoned one archived but no longer
+influencing new replies. Confirmed to resolve the exact reproduction above.
+
 ### Why the first reply can take a very long time — and how to tell it's not stuck
 
 Every message sends Hermes's **entire** system prompt, skill index, and tool
@@ -228,6 +241,7 @@ deployment like this one.
 | `hermes gateway status` still shows an old error after fixing it | Status can be stale for several minutes — check `docker compose logs --since 1m hermes \| grep -i telegram` instead |
 | Bot looks unresponsive for a long time on a VPS | Probably not stuck — see "Why the first reply can take a very long time" above; confirm with `ps aux \| grep llama-server` on the model-serving side |
 | "No home channel set for Telegram" | Expected on first contact — reply with `/set home` |
+| Every reply repeats the same broken/nonsense text, regardless of what you send | Session corrupted, likely after a network hiccup — a restart doesn't fix it (see "A session that keeps replying with nonsense" above). Send `/new` |
 | Gateway won't start at all: `FATAL: a live process holds a deleted state.db-wal or state.db-shm inode...` (macOS Docker only) | SQLite's WAL mode isn't reliably crash-safe over Docker Desktop's virtiofs bind mount — confirmed live, 2026-09-03, on a completely fresh `./data` (not a leftover-file issue). Set `database.journal_mode: delete` in `data/config.yaml` **before** the first `docker compose up` (already the default in `macos-arm64/config/config.yaml.example`) — Hermes won't live-downgrade a database already opened in WAL mode, so an existing `state.db` must be removed (back it up first, don't just delete) for the setting to take effect. |
 
 Source: official Hermes Agent documentation —

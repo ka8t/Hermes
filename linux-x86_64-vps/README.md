@@ -174,7 +174,10 @@ docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 Everything above runs in Docker Compose. If you'd rather not use Docker on
 this VPS at all, both `llama-swap`/`llama-server` and Hermes can run
 natively instead, via the same official binaries and installer this repo
-already relies on elsewhere:
+already relies on elsewhere. `./provision.sh` now offers this interactively
+(it asks "Docker or native?" partway through, added 2026-09-07) — the steps
+below are the same thing done by hand, for reference or a non-interactive
+run:
 
 ```bash
 # llama-swap + llama-server, natively (mirrors macos-arm64/'s native path)
@@ -194,6 +197,7 @@ cp config/models.yaml.example.native data/models.yaml
 # Hermes, natively
 ./scripts/install-hermes-native.sh    # curl | bash the official installer, idempotent
 ./scripts/setup-hermes-native.sh      # seeds ~/.hermes with this repo's config, approvals default, and skills
+./scripts/patch-native-hermes.sh      # applies the #48/#50/#75/#76 fixes the Docker image bakes in
 hermes gateway install                # sets up its own systemd user service
 hermes gateway start
 hermes gateway setup                  # once, to wire up Telegram
@@ -284,6 +288,14 @@ the official installer.
 `PATH` (run `install-hermes-native.sh` first). Never overwrites an existing
 `config.yaml` or `.env` under `HERMES_HOME` — seeds them only if missing —
 and always re-syncs `skills/ka8t-hermes/agent-creation/` from this repo.
+
+**`scripts/patch-native-hermes.sh`** — native path only, added 2026-09-07.
+No parameters. Applies the same fixes the Docker image bakes in at build
+time (#48, #50, #75, #76 — see `../docker/Dockerfile`'s comments for each)
+directly to a native install's `SOUL.md` and `web_tools.py`, since the
+official installer has no equivalent step. Idempotent — safe to re-run
+after `hermes update`. Mirrors `../macos-arm64/scripts/patch-native-hermes.sh`
+exactly.
 
 **`scripts/download-prebuilt-llama-server.sh`** — native path only. No
 parameters. Downloads the latest official `bin-ubuntu-x64.tar.gz` release
