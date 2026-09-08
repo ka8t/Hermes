@@ -93,6 +93,11 @@ TELEGRAM_GROUP_ALLOWED_CHATS=-1001234567890
 
 ## 4. Apply the credentials
 
+`provision.sh` does this step for you automatically (Docker path, both
+platforms) right after `scripts/configure-telegram.sh` runs — no manual
+action needed there. The rest of this section is for anyone applying a
+`.env` Telegram change by hand, outside the guided flow.
+
 **Which command actually applies a `.env` change depends on whether the
 container already exists.** This tripped us up live: `docker compose exec
 hermes hermes gateway restart` restarts the gateway *process inside the

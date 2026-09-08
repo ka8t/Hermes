@@ -156,7 +156,23 @@ echo ""
 read -r -p "Connect Telegram now (hermes gateway setup)? [Y/n] " TELEGRAM_REPLY
 case "${TELEGRAM_REPLY}" in
   [nN]*) ;;
-  *) GATEWAY_SETUP_CMD="${GATEWAY_SETUP_CMD}" ./scripts/configure-telegram.sh ;;
+  *)
+    GATEWAY_SETUP_CMD="${GATEWAY_SETUP_CMD}" ./scripts/configure-telegram.sh
+    # `hermes gateway setup`'s own "restart to pick up changes?" prompt
+    # only knows systemd/launchd (confirmed live 2026-09-08, reading
+    # gateway_setup()'s source) — it does nothing useful inside this
+    # container, and a plain in-container `hermes gateway restart`
+    # wouldn't help anyway, since Docker fixes a container's env vars at
+    # creation time (../shared/telegram-setup.md, "Apply the
+    # credentials"). Recreate the container so the token just written to
+    # .env is actually the one in use — otherwise the guided demo below
+    # queries a gateway still running with the old (or no) token, with no
+    # visible error explaining why.
+    echo ""
+    echo "==> Recreating the container so it picks up the Telegram config"
+    echo "    just written to .env (Docker only reads it at creation)."
+    docker compose up -d
+    ;;
 esac
 
 echo ""
