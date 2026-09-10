@@ -48,6 +48,7 @@ llama-swap via `host.docker.internal`.
 - [Silent-failure watchdog (optional)](#silent-failure-watchdog-optional)
 - [Managing models](#managing-models)
 - [Common operations](#common-operations)
+- [Docker commands reference](#docker-commands-reference)
 - [Native alternative (no Docker at all)](#native-alternative-no-docker-at-all)
 - [Scripts reference](#scripts-reference)
 - [Troubleshooting](#troubleshooting)
@@ -210,6 +211,18 @@ as a LaunchAgent — the VPS is the higher-priority target for this anyway
 Logs: `tail -f macos-arm64/silent-failure-watchdog.log`. To stop it:
 `launchctl unload ~/Library/LaunchAgents/com.hermes.silent-failure-watchdog.plist`.
 
+This watchdog is itself a single point of failure for the whole safety
+net above — [issue #85](https://github.com/ka8t/Hermes/issues/85), found
+live 2026-09-10 on the VPS: a blank `TELEGRAM_BOT_TOKEN` made it fail
+silently for ~35 minutes, visible only in the local log. The script now
+tracks every run's outcome in
+`~/.hermes/silent-failure-watchdog.state.json`, and on macOS fires a
+Notification Center alert directly on every failed run (the local,
+physically-present equivalent of the VPS's `wall`-broadcast-plus-
+login-banner combo — Notification Center groups repeated alerts from
+the same source, so this doesn't need its own dedup logic the way a
+repeated `wall` broadcast would).
+
 ## Managing models
 
 Edit `data/models.yaml` to add, change, or remove a model — both llama-swap
@@ -227,6 +240,31 @@ docker compose down                        # stops hermes (./data and ./models p
 docker compose exec hermes hermes backup -o /opt/data/backup-$(date +%Y%m%d).tar.gz
 docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 ```
+
+## Docker commands reference
+
+Every `docker`/`docker compose` invocation actually used anywhere in this
+platform's tooling — scripts, this README — audited directly against the
+source (`grep`), 2026-09-10. Only the `hermes` container is Docker on this
+platform (`llama-swap`/`llama-server` run natively, no container) — a
+much shorter list than the VPS's own reference, and no watchdog/update
+scripts run `docker compose` directly here since Docker is optional on
+this platform (see "Native alternative" below) and both watchdogs are
+`docker exec`-based specifically so they work the same way whether or
+not the caller's current directory is this compose project's own.
+
+| Command | Used by | What it does |
+|---|---|---|
+| `docker compose up -d [service]` | `provision.sh` (first boot and reconnecting Telegram), `configure-telegram.sh` (after blanking a dead token — Docker fixes env vars at container creation, so a `.env` edit needs a recreate to take effect), manual | Starts/recreates one service (or all) |
+| `docker compose ps [service] [--status ...]` | `verify-inference.sh` (checks `hermes` is running before estimating first-reply latency from `hermes prompt-size`) | Checks container status |
+| `docker compose exec [-T] <service> <cmd>` | manual (`hermes doctor --fix`, `hermes backup`), `verify-inference.sh` (`hermes prompt-size --json`), `guided-demo.sh` (`hermes cron list`, a state.db query) | Runs a command inside an already-running container, from this compose project's own directory (`-T` disables pseudo-tty allocation, used where output is parsed rather than shown interactively) |
+| `docker exec <container-name> <cmd>` | `silent-failure-watchdog.sh` | Same as `compose exec`, addressed by container name instead — used where the caller (a launchd job) can't rely on its working directory being this project's directory |
+| `docker compose logs [-f] [service]` | manual, troubleshooting (`guided-demo.sh` points here on a Metal-check failure) | Prints service logs — `-f` follows live |
+| `docker compose cp <src> <dst>` | Common operations (backup archive out) | Copies a file into or out of a running container |
+| `docker compose restart <service>` | manual, troubleshooting | Restarts `hermes` without recreating it (e.g. to pick up a config change) |
+| `docker compose down` | Common operations (stop the stack) | Stops and removes containers — data persists in `./data`/`./models` |
+| `docker compose watch` | manual (documented below, not scripted) | Dev-loop alternative to `up -d` when iterating on `../skills/agent-creation`, `../skills/reliability`, or `../docker/Dockerfile` itself — syncs a skill edit straight into the running container (no rebuild) and rebuilds automatically if the Dockerfile changes. See `docker-compose.yml`'s `develop.watch` block |
+| `docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .` | Repo root (not this directory) — CI (`.github/workflows/publish-image.yml`) or a manual local build | Builds this repo's own patched image (`docker/patch-web-search-schema.py`, `docker/patch-gateway-setup-telegram-only.py`, `docker/patch-clarify-questions-array.py`, the `SOUL.md` appends). This Mac only ever **pulls** the published result (`docker compose pull`, implicit in `up -d` when the local image is stale) — it never builds the image itself, except via the dev-loop `docker compose watch` above |
 
 ### Iterating on `docker/Dockerfile`'s additions without a manual rebuild
 
@@ -249,7 +287,7 @@ same official installer this project already relies on:
 ```bash
 ./scripts/install-hermes-native.sh    # curl | bash the official installer, idempotent
 ./scripts/setup-hermes-native.sh      # seeds ~/.hermes with this repo's config, approvals default, and skills
-./scripts/patch-native-hermes.sh      # applies this repo's #50/#48 fixes, which the official installer doesn't include
+./scripts/patch-native-hermes.sh      # applies this repo's Docker-image patches (#50, Telegram-only menu, #88, #48/#75/#76), which the official installer doesn't include
 ```
 
 `setup-hermes-native.sh` never overwrites an existing `~/.hermes/config.yaml`
@@ -263,12 +301,14 @@ copies this repo's [`skills/agent-creation`](../skills/agent-creation/) into
 `~/.hermes/skills/ka8t-hermes/`.
 
 `patch-native-hermes.sh` closes a gap the official installer leaves open:
-the Docker image (`../docker/Dockerfile`) bakes in two fixes at build time
-(#50's `web_search` schema patch, #48's `SOUL.md` verify-before-success
-instruction) that a native install has no equivalent step for. Run it after
-`setup-hermes-native.sh`, and again after any `hermes update` (an update
-re-clones the install and would silently drop the `web_tools.py` patch).
-Idempotent — safe to re-run.
+the Docker image (`../docker/Dockerfile`) bakes in several fixes at build
+time (#50's `web_search` schema patch, the Telegram-only gateway setup
+menu filter, #88's clarify-tool bare-question-object tolerance, and
+#48/#75/#76's `SOUL.md` instructions) that a native install has no
+equivalent step for. Run it after `setup-hermes-native.sh`, and again
+after any `hermes update` (an update re-clones the install and would
+silently drop the `web_tools.py`/`gateway.py`/`clarify_tool.py`
+patches). Idempotent — safe to re-run.
 
 Then, same two terminals as before, just without `docker compose`:
 
@@ -378,16 +418,29 @@ repo.
 
 **`scripts/patch-native-hermes.sh`** — native-Hermes path only. No
 parameters (optional env var: `HERMES_HOME`, default `~/.hermes`). Applies
-the same two fixes `../docker/Dockerfile` bakes into the container image at
+the same fixes `../docker/Dockerfile` bakes into the container image at
 build time — #50's `web_search` schema patch (edits
-`hermes-agent/tools/web_tools.py`) and #48's mandatory verify-before-success
-instruction (appends to `SOUL.md`) — since the official installer has no
-equivalent step and a native install would otherwise silently miss both.
-Idempotent: each patch checks its own current state (already-patched text
-present, expected old text present, or neither — the last case exits
-non-zero with a clear message rather than silently no-op'ing, since it means
-the installed `hermes-agent` version changed the file this script expects).
-Run after `setup-hermes-native.sh`, and again after any `hermes update`.
+`hermes-agent/tools/web_tools.py`), the Telegram-only gateway setup menu
+filter (edits `hermes-agent/hermes_cli/gateway.py`), #88's clarify-tool
+bare-question-object tolerance (edits
+`hermes-agent/tools/clarify_tool.py`), and #48/#75/#76's SOUL.md
+instructions (verify-before-success, the delegation-disclaimer stopgap,
+the zero-tool-call stopgap, and agent-creation skill routing) — since the
+official installer has no equivalent step and a native install would
+otherwise silently miss all of them. Idempotent: each patch checks its
+own current state (already-patched text present, expected old text
+present, or neither — the last case exits non-zero with a clear message
+rather than silently no-op'ing, since it means the installed
+`hermes-agent` version changed the file this script expects). The
+gateway-menu patch is anchored on the function boundary rather than
+literal text (found live, 2026-09-10, that upstream reformats that
+function's body cosmetically between releases — see
+`../docker/patch-gateway-setup-telegram-only.py`). Run after
+`setup-hermes-native.sh`, and again after any `hermes update`. Verified
+live against a real local native install, 2026-09-10: both new patches
+applied cleanly, confirmed idempotent on a second run, and functionally
+checked (`_all_platforms()` returns `['telegram']` only,
+`_normalize_questions()` accepts a bare question object).
 
 **`scripts/silent-failure-watchdog.sh`** — no required parameters (optional
 env var: `HERMES_MODE`, `docker` (default) or `native`, matching
@@ -396,15 +449,18 @@ env var: `HERMES_MODE`, `docker` (default) or `native`, matching
 for Telegram sessions whose most recent message is from the user with no
 non-empty assistant reply after it, once more time has passed than this
 deployment's own `agent.local_stream_stale_timeout` (config.yaml) allows
-for legitimate slow inference (times 2, to cover a retry) — a real
-upstream hermes-agent gap this repo can't fix directly — and sends the
-affected user a fixed fallback message straight via the Telegram Bot API,
-bypassing hermes-agent for that one message. Tracks already-notified
-message IDs at `~/.hermes/silent-failure-watchdog.notified-ids` so the
-same dangling message is never notified twice. Meant to run every few
-minutes via
-`com.hermes.silent-failure-watchdog.plist.example` (see "Silent-failure
-watchdog" above), not invoked manually in normal use.
+for legitimate slow inference (times 3, to cover hermes-agent's own full
+retry budget — see [issue #85](https://github.com/ka8t/Hermes/issues/85))
+— a real upstream hermes-agent gap this repo can't fix directly — and
+sends the affected user a fixed fallback message straight via the
+Telegram Bot API, bypassing hermes-agent for that one message. Tracks
+already-notified message IDs at
+`~/.hermes/silent-failure-watchdog.notified-ids` so the same dangling
+message is never notified twice, and every run's own outcome at
+`~/.hermes/silent-failure-watchdog.state.json` (issue #85 — see
+"Silent-failure watchdog" above for what reads this). Meant to run every
+few minutes via `com.hermes.silent-failure-watchdog.plist.example`, not
+invoked manually in normal use.
 
 **Not available on macOS**: `build-agent-template.sh` and
 `provision-user.sh` (multi-user profile isolation) currently only exist

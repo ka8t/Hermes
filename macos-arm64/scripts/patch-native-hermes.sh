@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Applies to a native Hermes install the same two fixes the Docker image
+# Applies to a native Hermes install the same fixes the Docker image
 # (ghcr.io/ka8t/hermes, see ../../docker/Dockerfile) bakes in at build
 # time — the official installer has no equivalent step, so a native
-# install silently misses both unless this runs. Idempotent: each patch
-# checks its own current state before touching anything.
+# install silently misses all of them unless this runs. Idempotent: each
+# patch checks its own current state before touching anything.
 #
 # Run after ./install-hermes-native.sh + ./setup-hermes-native.sh, and
 # again after any `hermes update` (an update re-clones/rebuilds the
-# venv, which would silently drop the web_tools.py patch — SOUL.md is
-# untouched by updates since it lives in $HERMES_HOME, not the install
-# tree, but re-running this is harmless either way).
+# venv, which would silently drop the web_tools.py/gateway.py/
+# clarify_tool.py patches — SOUL.md is untouched by updates since it
+# lives in $HERMES_HOME, not the install tree, but re-running this is
+# harmless either way).
 set -euo pipefail
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-WEB_TOOLS="${HERMES_HOME}/hermes-agent/tools/web_tools.py"
+INSTALL_ROOT="${HERMES_HOME}/hermes-agent"
+WEB_TOOLS="${INSTALL_ROOT}/tools/web_tools.py"
+GATEWAY_PY="${INSTALL_ROOT}/hermes_cli/gateway.py"
+CLARIFY_TOOL="${INSTALL_ROOT}/tools/clarify_tool.py"
 SOUL_MD="${HERMES_HOME}/SOUL.md"
 
 # --- #50: web_search tool-name collision with llama-server ---
@@ -60,6 +64,108 @@ else:
         f"!! {target} doesn't match the expected text — the installed "
         "hermes-agent version may have changed this file. Check "
         "shared/model-notes.md's #50 section and update this script."
+    )
+PY
+
+# --- Telegram-only gateway setup menu ---
+# See ../../docker/patch-gateway-setup-telegram-only.py — same patch,
+# same reasoning (only Telegram is implemented/tested/documented for
+# this repo's deployments; see ../../shared/telegram-setup.md), applied
+# to the native install's own copy of gateway.py instead of the Docker
+# image's. Anchored on the function boundary and the last bare "return
+# platforms" inside it, not on internal formatting, for the same reason
+# as the Docker patch: found live, 2026-09-10, that upstream reformats
+# this function's body cosmetically between releases.
+if [ ! -f "${GATEWAY_PY}" ]; then
+  echo "!! ${GATEWAY_PY} not found — run ./install-hermes-native.sh first." >&2
+  exit 1
+fi
+python3 - "${GATEWAY_PY}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+MARKER = "ka8t/Hermes: only Telegram is implemented"
+if MARKER in text:
+    print("==> gateway setup menu already filtered to Telegram-only — left as is")
+    sys.exit(0)
+
+FUNC_START = "def _all_platforms("
+start = text.find(FUNC_START)
+if start == -1:
+    sys.exit(
+        f"!! _all_platforms() not found in {target} — the installed "
+        "hermes-agent version may have changed this file. Check "
+        "../../docker/patch-gateway-setup-telegram-only.py and update "
+        "this script."
+    )
+end = text.find("\ndef ", start + len(FUNC_START))
+if end == -1:
+    end = len(text)
+func_body = text[start:end]
+
+RETURN_MARKER = "    return platforms"
+last_idx = func_body.rfind(RETURN_MARKER)
+if last_idx == -1:
+    sys.exit(
+        f"!! no 'return platforms' found inside _all_platforms() in {target} "
+        "— the installed hermes-agent version may have changed this "
+        "file. Check ../../docker/patch-gateway-setup-telegram-only.py "
+        "and update this script."
+    )
+
+replacement = (
+    "    # ka8t/Hermes: only Telegram is implemented, tested, and documented\n"
+    "    # for this deployment (see shared/telegram-setup.md) -- filter the\n"
+    "    # setup menu down to it instead of offering channels that would\n"
+    "    # silently go unsupported. See\n"
+    "    # macos-arm64/scripts/patch-native-hermes.sh /\n"
+    "    # docker/patch-gateway-setup-telegram-only.py.\n"
+    '    return [p for p in platforms if p["key"] == "telegram"]'
+)
+patched_func = func_body[:last_idx] + replacement + func_body[last_idx + len(RETURN_MARKER):]
+target.write_text(text[:start] + patched_func + text[end:])
+print("==> gateway setup menu filtered to Telegram-only")
+PY
+
+# --- #88: clarify tool tolerates a bare question object ---
+# See ../../docker/patch-clarify-questions-array.py and
+# ../../shared/model-notes.md's "clarify itself root-caused and fixed"
+# section for the full root cause — applied to the native install's
+# own copy of clarify_tool.py.
+if [ ! -f "${CLARIFY_TOOL}" ]; then
+  echo "!! ${CLARIFY_TOOL} not found — run ./install-hermes-native.sh first." >&2
+  exit 1
+fi
+python3 - "${CLARIFY_TOOL}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+old = '''    if not isinstance(questions, list):
+        return None, "questions must be an array of question objects."'''
+
+new = '''    if isinstance(questions, dict):
+        # ka8t/Hermes: tolerate a single question object instead of a
+        # one-entry array -- see macos-arm64/scripts/patch-native-hermes.sh /
+        # docker/patch-clarify-questions-array.py (issue #88).
+        questions = [questions]
+    if not isinstance(questions, list):
+        return None, "questions must be an array of question objects."'''
+
+if new in text:
+    print("==> clarify tool already tolerates a bare question object (#88) — left as is")
+elif old in text:
+    target.write_text(text.replace(old, new, 1))
+    print("==> clarify tool patched to tolerate a bare question object (#88)")
+else:
+    sys.exit(
+        f"!! {target} doesn't match the expected text — the installed "
+        "hermes-agent version may have changed this file. Check "
+        "shared/model-notes.md's clarify-loop section and update this "
+        "script."
     )
 PY
 
