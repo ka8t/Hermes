@@ -22,7 +22,9 @@
       "**/data/**",
       "**/data.bak.*/**",
       "**/models/**",
-      "eval/bfcl-workspace/**"
+      "eval/bfcl-workspace/**",
+      "macos-arm64/data/",
+      "macos-arm64/data.bak.*/"
     ],
     "include": [
       ".",
