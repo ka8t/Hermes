@@ -50,18 +50,20 @@ COPY skills/reliability /opt/hermes/skills/ka8t-hermes/reliability
 COPY docker/patch-web-search-schema.py /tmp/patch-web-search-schema.py
 RUN python3 /tmp/patch-web-search-schema.py && rm /tmp/patch-web-search-schema.py
 
-# --- Telegram-only gateway setup menu ---
+# --- Allowed-channels gateway setup menu ---
 # `hermes gateway setup`'s platform picker (_all_platforms() in
 # hermes_cli/gateway.py) lists every built-in and plugin-registered
 # messaging platform upstream ships (Discord, WhatsApp, Signal, Matrix, IRC,
-# Mattermost, Weixin, Slack...). This repo has only implemented, tested, and
-# documented Telegram (see shared/telegram-setup.md) — offering the rest
-# invites picking a channel that looks configured but was never verified on
-# this stack. See docker/patch-gateway-setup-telegram-only.py for the exact
-# patch and why filtering the menu beats trying to grey out entries in
-# upstream's curses picker.
-COPY docker/patch-gateway-setup-telegram-only.py /tmp/patch-gateway-setup-telegram-only.py
-RUN python3 /tmp/patch-gateway-setup-telegram-only.py && rm /tmp/patch-gateway-setup-telegram-only.py
+# Mattermost, Weixin, Slack...). This repo documents Telegram
+# (shared/telegram-setup.md) and email (shared/email-setup.md, issue #89)
+# end-to-end — offering the rest invites picking a channel that looks
+# configured but was never verified on this stack. Was Telegram-only
+# (#83) until a real user story needed email too (#90) — see
+# docker/patch-gateway-setup-allowed-channels.py for the exact patch,
+# its ALLOWED_KEYS policy, and why filtering the menu beats trying to
+# grey out entries in upstream's curses picker.
+COPY docker/patch-gateway-setup-allowed-channels.py /tmp/patch-gateway-setup-allowed-channels.py
+RUN python3 /tmp/patch-gateway-setup-allowed-channels.py && rm /tmp/patch-gateway-setup-allowed-channels.py
 
 # --- clarify tool: tolerate a bare question object (#88) ---
 # Confirmed live, 2026-09-10 (a Telegram "Bonjour" test): Llama-3.1-8B

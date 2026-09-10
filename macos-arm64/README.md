@@ -264,7 +264,7 @@ not the caller's current directory is this compose project's own.
 | `docker compose restart <service>` | manual, troubleshooting | Restarts `hermes` without recreating it (e.g. to pick up a config change) |
 | `docker compose down` | Common operations (stop the stack) | Stops and removes containers — data persists in `./data`/`./models` |
 | `docker compose watch` | manual (documented below, not scripted) | Dev-loop alternative to `up -d` when iterating on `../skills/agent-creation`, `../skills/reliability`, or `../docker/Dockerfile` itself — syncs a skill edit straight into the running container (no rebuild) and rebuilds automatically if the Dockerfile changes. See `docker-compose.yml`'s `develop.watch` block |
-| `docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .` | Repo root (not this directory) — CI (`.github/workflows/publish-image.yml`) or a manual local build | Builds this repo's own patched image (`docker/patch-web-search-schema.py`, `docker/patch-gateway-setup-telegram-only.py`, `docker/patch-clarify-questions-array.py`, the `SOUL.md` appends). This Mac only ever **pulls** the published result (`docker compose pull`, implicit in `up -d` when the local image is stale) — it never builds the image itself, except via the dev-loop `docker compose watch` above |
+| `docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .` | Repo root (not this directory) — CI (`.github/workflows/publish-image.yml`) or a manual local build | Builds this repo's own patched image (`docker/patch-web-search-schema.py`, `docker/patch-gateway-setup-allowed-channels.py`, `docker/patch-clarify-questions-array.py`, the `SOUL.md` appends). This Mac only ever **pulls** the published result (`docker compose pull`, implicit in `up -d` when the local image is stale) — it never builds the image itself, except via the dev-loop `docker compose watch` above |
 
 ### Iterating on `docker/Dockerfile`'s additions without a manual rebuild
 
@@ -435,7 +435,7 @@ rather than silently no-op'ing, since it means the installed
 gateway-menu patch is anchored on the function boundary rather than
 literal text (found live, 2026-09-10, that upstream reformats that
 function's body cosmetically between releases — see
-`../docker/patch-gateway-setup-telegram-only.py`). Run after
+`../docker/patch-gateway-setup-allowed-channels.py`). Run after
 `setup-hermes-native.sh`, and again after any `hermes update`. Verified
 live against a real local native install, 2026-09-10: both new patches
 applied cleanly, confirmed idempotent on a second run, and functionally

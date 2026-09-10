@@ -67,15 +67,20 @@ else:
     )
 PY
 
-# --- Telegram-only gateway setup menu ---
-# See ../../docker/patch-gateway-setup-telegram-only.py — same patch,
-# same reasoning (only Telegram is implemented/tested/documented for
-# this repo's deployments; see ../../shared/telegram-setup.md), applied
-# to the native install's own copy of gateway.py instead of the Docker
-# image's. Anchored on the function boundary and the last bare "return
-# platforms" inside it, not on internal formatting, for the same reason
-# as the Docker patch: found live, 2026-09-10, that upstream reformats
-# this function's body cosmetically between releases.
+# --- Allowed-channels gateway setup menu ---
+# See ../../docker/patch-gateway-setup-allowed-channels.py — same patch,
+# same reasoning and same ALLOWED_KEYS policy (channels this repo
+# actually documents end-to-end; see ../../shared/telegram-setup.md,
+# ../../shared/email-setup.md), applied to the native install's own copy
+# of gateway.py instead of the Docker image's. Anchored on the function
+# boundary and the last bare "return platforms" inside it, not on
+# internal formatting, for the same reason as the Docker patch: found
+# live, 2026-09-10, that upstream reformats this function's body
+# cosmetically between releases. Was Telegram-only (#83) until #90
+# widened it to also allow email — this script upgrades an
+# already-Telegram-only-patched install in place, not just a pristine
+# one, so re-running it after a `git pull` picks up the widened policy
+# without needing a fresh install.
 if [ ! -f "${GATEWAY_PY}" ]; then
   echo "!! ${GATEWAY_PY} not found — run ./install-hermes-native.sh first." >&2
   exit 1
@@ -86,18 +91,49 @@ import pathlib, sys
 target = pathlib.Path(sys.argv[1])
 text = target.read_text()
 
-MARKER = "ka8t/Hermes: only Telegram is implemented"
-if MARKER in text:
-    print("==> gateway setup menu already filtered to Telegram-only — left as is")
+ALLOWED_KEYS = ("telegram", "email")
+NEW_MARKER = "ka8t/Hermes: only these channels are implemented"
+
+NEW_BLOCK = (
+    "    # ka8t/Hermes: only these channels are implemented, tested, and\n"
+    "    # documented for this deployment (see shared/telegram-setup.md,\n"
+    "    # shared/email-setup.md) -- filter the setup menu down to them\n"
+    "    # instead of offering channels that would silently go unsupported.\n"
+    "    # See macos-arm64/scripts/patch-native-hermes.sh /\n"
+    "    # docker/patch-gateway-setup-allowed-channels.py.\n"
+    f"    _ALLOWED = {ALLOWED_KEYS!r}\n"
+    '    return [p for p in platforms if p["key"] in _ALLOWED]'
+)
+
+if NEW_MARKER in text:
+    print(f"==> gateway setup menu already filtered to {ALLOWED_KEYS} — left as is")
     sys.exit(0)
 
+# Upgrade path: an earlier run of this script (#83) already replaced the
+# original "return platforms" with the Telegram-only version -- that
+# exact block, not the pristine upstream one, is what's in the file now.
+OLD_BLOCK = (
+    "    # ka8t/Hermes: only Telegram is implemented, tested, and documented\n"
+    "    # for this deployment (see shared/telegram-setup.md) -- filter the\n"
+    "    # setup menu down to it instead of offering channels that would\n"
+    "    # silently go unsupported. See\n"
+    "    # macos-arm64/scripts/patch-native-hermes.sh /\n"
+    "    # docker/patch-gateway-setup-telegram-only.py.\n"
+    '    return [p for p in platforms if p["key"] == "telegram"]'
+)
+if OLD_BLOCK in text:
+    target.write_text(text.replace(OLD_BLOCK, NEW_BLOCK, 1))
+    print(f"==> gateway setup menu upgraded from Telegram-only to {ALLOWED_KEYS}")
+    sys.exit(0)
+
+# Pristine, never patched by this script before.
 FUNC_START = "def _all_platforms("
 start = text.find(FUNC_START)
 if start == -1:
     sys.exit(
         f"!! _all_platforms() not found in {target} — the installed "
         "hermes-agent version may have changed this file. Check "
-        "../../docker/patch-gateway-setup-telegram-only.py and update "
+        "../../docker/patch-gateway-setup-allowed-channels.py and update "
         "this script."
     )
 end = text.find("\ndef ", start + len(FUNC_START))
@@ -111,22 +147,13 @@ if last_idx == -1:
     sys.exit(
         f"!! no 'return platforms' found inside _all_platforms() in {target} "
         "— the installed hermes-agent version may have changed this "
-        "file. Check ../../docker/patch-gateway-setup-telegram-only.py "
+        "file. Check ../../docker/patch-gateway-setup-allowed-channels.py "
         "and update this script."
     )
 
-replacement = (
-    "    # ka8t/Hermes: only Telegram is implemented, tested, and documented\n"
-    "    # for this deployment (see shared/telegram-setup.md) -- filter the\n"
-    "    # setup menu down to it instead of offering channels that would\n"
-    "    # silently go unsupported. See\n"
-    "    # macos-arm64/scripts/patch-native-hermes.sh /\n"
-    "    # docker/patch-gateway-setup-telegram-only.py.\n"
-    '    return [p for p in platforms if p["key"] == "telegram"]'
-)
-patched_func = func_body[:last_idx] + replacement + func_body[last_idx + len(RETURN_MARKER):]
+patched_func = func_body[:last_idx] + NEW_BLOCK + func_body[last_idx + len(RETURN_MARKER):]
 target.write_text(text[:start] + patched_func + text[end:])
-print("==> gateway setup menu filtered to Telegram-only")
+print(f"==> gateway setup menu filtered to {ALLOWED_KEYS}")
 PY
 
 # --- #88: clarify tool tolerates a bare question object ---
