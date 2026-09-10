@@ -154,14 +154,49 @@ noticing:
 
 ```bash
 sudo cp scripts/silent-failure-watchdog.service.example /etc/systemd/system/silent-failure-watchdog.service
+sudo cp scripts/silent-failure-watchdog-alert.service.example /etc/systemd/system/silent-failure-watchdog-alert.service
 sudo cp scripts/silent-failure-watchdog.timer.example /etc/systemd/system/silent-failure-watchdog.timer
-# edit the two REPLACE_WITH_REPO_PATH occurrences in the .service file
+sudo cp scripts/95-hermes-watchdog-status /etc/update-motd.d/95-hermes-watchdog-status
+sudo chmod +x /etc/update-motd.d/95-hermes-watchdog-status
+# edit the REPLACE_WITH_REPO_PATH occurrences in BOTH .service files
 sudo systemctl daemon-reload
 sudo systemctl enable --now silent-failure-watchdog.timer
 ```
 
 Logs: `journalctl -u silent-failure-watchdog.service`. To stop it:
 `sudo systemctl disable --now silent-failure-watchdog.timer`.
+
+This watchdog is itself a single point of failure for the whole safety
+net above — [issue #85](https://github.com/ka8t/Hermes/issues/85), found
+live 2026-09-10: a blank `TELEGRAM_BOT_TOKEN` made it fail silently for
+~35 minutes, visible only in the journal. `silent-failure-watchdog.sh` now
+tracks every run's outcome in `~/.hermes/silent-failure-watchdog.state.json`;
+`OnFailure=` on the main service triggers an immediate `wall` broadcast to
+anyone logged in, and `95-hermes-watchdog-status` (installed above) shows a
+persistent SSH login-banner warning for as long as the failure lasts.
+
+### Stuck-generation watchdog (optional, issue #86)
+
+llama.cpp/llama-swap don't cancel a generation when hermes's own client
+disconnects — a stuck request can occupy `llama-server`'s single slot far
+longer than `config/models.yaml`'s `--predict` cap should allow, with every
+retry queuing up behind it (see
+[`../shared/hardware-sizing.md`](../shared/hardware-sizing.md)'s 2026-09-10
+incident). `scripts/stuck-generation-watchdog.sh`, run every 5 minutes,
+detects this (no completed request logged in far longer than a completion
+should ever take) and sends a Telegram alert to `TELEGRAM_HOME_CHANNEL` —
+deliberately does **not** restart anything itself; a human decides:
+
+```bash
+sudo cp scripts/stuck-generation-watchdog.service.example /etc/systemd/system/stuck-generation-watchdog.service
+sudo cp scripts/stuck-generation-watchdog.timer.example /etc/systemd/system/stuck-generation-watchdog.timer
+# edit the REPLACE_WITH_REPO_PATH occurrence in the .service file
+sudo systemctl daemon-reload
+sudo systemctl enable --now stuck-generation-watchdog.timer
+```
+
+If it fires: `docker compose exec llama-swap ps aux` to confirm, then
+`docker compose restart llama-swap` to clear it.
 
 ## Common operations
 
@@ -170,11 +205,14 @@ docker compose restart hermes        # restarts just the agent
 docker compose exec hermes hermes doctor --fix
 docker compose logs --tail 100 llama-swap
 docker compose down                  # stop (data persists in ./data and ./models)
-docker compose pull && docker compose up -d   # update images
+docker compose pull && docker compose up -d   # update images (run ON the VPS)
 
 # back up Hermes's memory/skills/sessions before anything risky
 docker compose exec hermes hermes backup -o /opt/data/backup-$(date +%Y%m%d).tar.gz
 docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
+
+# from YOUR OWN machine instead (issue #87): pull + recreate over SSH
+./scripts/update-remote.sh <your-ssh-host-alias>
 ```
 
 ## Managing models
@@ -265,15 +303,37 @@ env var: `HERMES_MODE`, `docker` (default) or `native`, matching
 for Telegram sessions whose most recent message is from the user with no
 non-empty assistant reply after it, once more time has passed than this
 deployment's own `agent.local_stream_stale_timeout` (config.yaml) allows
-for legitimate slow inference (times 2, to cover a retry) — a real
-upstream hermes-agent gap this repo can't fix directly — and sends the
-affected user a fixed fallback message straight via the Telegram Bot API,
-bypassing hermes-agent for that one message. Tracks already-notified
-message IDs at `~/.hermes/silent-failure-watchdog.notified-ids` so the
-same dangling message is never notified twice. Meant to run every few
-minutes via
-`silent-failure-watchdog.timer.example` (see "Silent-failure watchdog"
-above), not invoked manually in normal use.
+for legitimate slow inference (times 3, to cover hermes-agent's own
+full retry budget — see [issue #85](https://github.com/ka8t/Hermes/issues/85))
+— a real upstream hermes-agent gap this repo can't fix directly — and
+sends the affected user a fixed fallback message straight via the
+Telegram Bot API, bypassing hermes-agent for that one message. Tracks
+already-notified message IDs at
+`~/.hermes/silent-failure-watchdog.notified-ids` so the same dangling
+message is never notified twice, and every run's own outcome at
+`~/.hermes/silent-failure-watchdog.state.json` (issue #85 — see "Silent-
+failure watchdog" above for what reads this). Meant to run every few
+minutes via `silent-failure-watchdog.timer.example`, not invoked manually
+in normal use.
+
+**`scripts/stuck-generation-watchdog.sh`** — no required parameters
+(optional env vars: `STUCK_THRESHOLD_S`, default `1800`;
+`LLAMA_SWAP_CONTAINER`, default `llama-swap`). See "Stuck-generation
+watchdog" above for what it does and why it deliberately doesn't restart
+anything.
+
+**`scripts/update-remote.sh <ssh-host-alias> [--restart-llama-swap]`** —
+run from **your own local machine**, not the VPS (the one script in this
+directory that isn't) — see [issue #87](https://github.com/ka8t/Hermes/issues/87).
+Takes an SSH target (a `Host` alias from your own `~/.ssh/config`, or a
+bare `user@host`) as its first argument; this repo deliberately doesn't
+store or manage SSH connection details itself, see the script's own header
+comment. Pulls this repo's latest commits and the latest
+`ghcr.io/ka8t/hermes` image on the VPS, recreates the `hermes` container,
+and waits for it to report `Up`. Does **not** touch `llama-swap` or reload
+the model by default (a restart there can interrupt an in-flight
+generation — see `shared/hardware-sizing.md`'s 2026-09-10 incident) —
+pass `--restart-llama-swap` if `config/models.yaml` also changed.
 
 ## Troubleshooting
 
