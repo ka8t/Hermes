@@ -63,6 +63,19 @@ RUN python3 /tmp/patch-web-search-schema.py && rm /tmp/patch-web-search-schema.p
 COPY docker/patch-gateway-setup-telegram-only.py /tmp/patch-gateway-setup-telegram-only.py
 RUN python3 /tmp/patch-gateway-setup-telegram-only.py && rm /tmp/patch-gateway-setup-telegram-only.py
 
+# --- clarify tool: tolerate a bare question object (#88) ---
+# Confirmed live, 2026-09-10 (a Telegram "Bonjour" test): Llama-3.1-8B
+# calls `clarify` with `questions` as a bare object instead of the
+# schema's required one-entry array on effectively every first clarify
+# call, and hermes-agent's own loop guardrail then forces it to keep
+# retrying tools rather than fall back to text — a single malformed
+# call escalates into an 8-attempt, multi-minute loop for a message
+# that never needed any tool. See docker/patch-clarify-questions-array.py
+# and shared/model-notes.md's clarify-loop section for the full
+# writeup.
+COPY docker/patch-clarify-questions-array.py /tmp/patch-clarify-questions-array.py
+RUN python3 /tmp/patch-clarify-questions-array.py && rm /tmp/patch-clarify-questions-array.py
+
 # --- Verify-before-success, as a mandatory identity instruction (#48) ---
 # The discretionary skill above (verify-before-success, #49) was tested
 # live and found insufficient: the model doesn't reliably choose to
