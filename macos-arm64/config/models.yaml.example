@@ -22,6 +22,7 @@ models:
       --flash-attn on
       -ctk q8_0
       -ctv q8_0
+      --predict 4096
     ttl: 600
     # -ctk/-ctv q8_0 quantize the KV cache (llama-server default: f16) —
     # cuts llama-server's RSS at this repo's 65536-token context from
@@ -30,3 +31,14 @@ models:
     # issue #52. --flash-attn is required for quantized KV cache in
     # llama.cpp. macOS/Metal only — not yet verified on the Linux VPS
     # (CPU) path, don't assume it holds there without testing.
+    #
+    # --predict 4096 caps a single completion's generation length
+    # (llama-server default: -1, unbounded). Confirmed live on the VPS,
+    # 2026-09-10: an unbounded generation pegged llama-server at ~700%
+    # CPU for over an hour producing zero usable output, and a client
+    # disconnect does NOT cancel it server-side — see
+    # shared/hardware-sizing.md's 2026-09-10 incident. Applied on both
+    # platforms even though this Mac's own 25-36 tok/s generation speed
+    # makes a runaway generation far less punishing here (4096 tokens is
+    # under 3 minutes) — the unbounded-generation risk itself isn't
+    # hardware-specific, only its blast radius is.

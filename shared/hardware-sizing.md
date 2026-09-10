@@ -190,12 +190,35 @@ generation can keep running as a "zombie" after hermes has already given
 up on it, and any retry queues up behind that same never-finishing
 request instead of getting a fresh attempt.
 
-**Fix applied:** `docker compose restart llama-swap` — cleanly killed the
-stuck `llama-server` process and started a fresh one (confirmed by PID
-change and the CPU-time-delta check above showing active work on a
+**Immediate fix applied:** `docker compose restart llama-swap` — cleanly
+killed the stuck `llama-server` process and started a fresh one (confirmed
+by PID change and the CPU-time-delta check above showing active work on a
 request that started seconds after the restart, not minutes of
 accumulated backlog). No data loss — this container holds no state of its
 own. The retried request then completed normally.
+
+**Structural fix applied the same day:** `--predict 4096` added to
+`llama-server`'s command in both platforms'
+`config/models.yaml.example` (and the live `data/models.yaml` on this
+VPS and the local Mac deployment). llama-server's own default is `-1`
+(unbounded) — this caps any single completion to at most 4096 generated
+tokens (~9 minutes worst case at this VPS's measured 7.4 tok/s, well
+under 3 minutes on the Mac's 25-36 tok/s), instead of letting a
+runaway/repetition-loop generation run indefinitely toward the
+65536-token context ceiling. Doesn't fix the underlying
+"client-disconnect doesn't cancel server-side generation" gap (that's
+llama.cpp's own behavior, not something this repo's config controls),
+but bounds its blast radius to a known, small maximum instead of open-
+ended.
+
+`silent-failure-watchdog.sh`'s own detection margin was widened
+alongside this (`STALE_MARGIN_MULTIPLIER` 2 → 3, both platforms) — it
+was computing its silence threshold as `local_stream_stale_timeout × 2`
+while its own comment already documented that hermes can legitimately
+take 3 full retries before giving up; confirmed live this same incident
+that a single attempt really can consume the entire timeout, not just
+"some of it," so the 2x margin could have fired a false "something went
+wrong" notification mid-legitimate-retry.
 
 **Mitigation available today, not yet automated:** hermes has a built-in
 `/compress` slash command (alias `/compact`), usable directly in any

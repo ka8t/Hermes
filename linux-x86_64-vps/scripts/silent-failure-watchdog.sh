@@ -16,11 +16,18 @@
 #
 # "Enough time" is derived from this deployment's own
 # agent.local_stream_stale_timeout (config.yaml) — the same number Hermes
-# itself uses as its stream-stale cutoff for a local endpoint — times 2, to
-# cover one retry (see shared/telegram-setup.md's "25-40+ minutes" section:
-# up to 3 retries can legitimately happen before Hermes gives up). Falls
-# back to hermes-agent's own default local-endpoint ceiling (900s) if the
-# setting isn't present in config.yaml.
+# itself uses as its stream-stale cutoff for a local endpoint — times 3, to
+# cover hermes-agent's own retry budget (see shared/telegram-setup.md's
+# "25-40+ minutes" section: up to 3 retries can legitimately happen before
+# Hermes gives up). Was times 2 until 2026-09-10 -- confirmed live that a
+# single stuck attempt can legitimately consume the FULL timeout (not just
+# "some of it"), so a 2x margin could fire a false "something went wrong"
+# while hermes was still honestly in its 3rd attempt. See
+# shared/hardware-sizing.md's 2026-09-10 incident, and the --predict cap
+# added to config/models.yaml.example the same day, which bounds how long
+# a single stuck attempt can now run in the first place. Falls back to
+# hermes-agent's own default local-endpoint ceiling (900s) if the setting
+# isn't present in config.yaml.
 #
 # Run periodically (every few minutes), not as a long-running daemon — see
 # silent-failure-watchdog.timer.example for the systemd wiring.
@@ -48,7 +55,7 @@ HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 # hermes-agent's own default stream-stale ceiling for a local endpoint (see
 # shared/telegram-setup.md) — used when config.yaml doesn't override it.
 DEFAULT_STALE_TIMEOUT_S=900
-STALE_MARGIN_MULTIPLIER=2
+STALE_MARGIN_MULTIPLIER=3
 
 # Host-side file of already-notified message IDs, independent of
 # $HERMES_MODE (this script always runs on the host, never inside the

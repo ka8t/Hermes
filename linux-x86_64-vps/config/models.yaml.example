@@ -24,6 +24,7 @@ models:
       --flash-attn on
       -ctk q8_0
       -ctv q8_0
+      --predict 4096
     ttl: 600
     # -ctk/-ctv q8_0 quantize the KV cache (llama-server default: f16) —
     # cuts llama-server's RSS at this repo's 65536-token context from
@@ -32,3 +33,17 @@ models:
     # unaffected — confirmed live, issue #52. Same fix already applied
     # on the macOS/Metal path (macos-arm64/config/models.yaml.example),
     # verified separately there.
+    #
+    # --predict 4096 caps a single completion's generation length
+    # (llama-server default: -1, unbounded). Confirmed live, 2026-09-10:
+    # an unbounded generation on this VPS pegged llama-server at ~700%
+    # CPU for over an hour producing zero usable output, and a client
+    # disconnect does NOT cancel it server-side — hermes's own
+    # stream-stale watchdog gave up while the "zombie" generation kept
+    # running, and the retry queued up behind it. See
+    # shared/hardware-sizing.md's 2026-09-10 incident for the full
+    # writeup. At this deployment's measured ~7.4 tok/s generation
+    # speed, 4096 tokens bounds a single call to ~9 minutes worst case —
+    # long enough for a real tool-calling turn, short enough to cap a
+    # runaway/repetition-loop generation instead of letting it run
+    # unbounded toward the 65536-token context ceiling.
