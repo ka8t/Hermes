@@ -190,6 +190,15 @@ case "${TELEGRAM_REPLY}" in
 esac
 
 echo ""
+read -r -p "Also connect email now (hermes gateway setup, issue #89)? [y/N] " EMAIL_REPLY
+case "${EMAIL_REPLY}" in
+  [yY]*)
+    GATEWAY_SETUP_CMD="${GATEWAY_SETUP_CMD}" ./scripts/configure-email.sh
+    ;;
+  *) ;;
+esac
+
+echo ""
 read -r -p "Run the mandatory real-inference-throughput check now? [Y/n] " VERIFY_REPLY
 case "${VERIFY_REPLY}" in
   [nN]*) ;;
