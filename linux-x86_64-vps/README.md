@@ -284,6 +284,19 @@ be reached at all (network issue), asks the same y/N but says plainly the
 check was unverified. Otherwise (never configured, or you say yes),
 prints the BotFather instructions and runs `hermes gateway setup`.
 
+**`scripts/configure-email.sh`** — added 2026-09-10 (issue #89). No
+parameters (requires `GATEWAY_SETUP_CMD`, same as `configure-telegram.sh`
+above). No equivalent of Telegram's `getMe`-based dead-token check is
+possible here (an app password doesn't expire visibly the same way) — if
+`EMAIL_ADDRESS` is already set, asks "Reconfigure it? [y/N]" and exits on
+decline; otherwise prints the real setup steps (dedicated mailbox
+recommended, Gmail app-password instructions, IMAP/SMTP host/port,
+`EMAIL_ALLOWED_USERS`) and hands off to `hermes gateway setup`, which does
+its own connectivity check. **Config/script support only — not yet
+live-verified against a real mailbox**, see
+[`../shared/email-setup.md`](../shared/email-setup.md)'s status line and
+[issue #89](https://github.com/ka8t/Hermes/issues/89).
+
 **`scripts/build-agent-template.sh`** — Docker path only. No parameters
 (optional env var: `AGENT_TEMPLATE_PROFILE`, default `agent-template`, to
 name the template profile differently). Requires the `hermes` container
