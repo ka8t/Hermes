@@ -23,4 +23,13 @@ models:
       --threads ${env.LLAMA_THREADS}
       --n-gpu-layers ${env.LLAMA_GPU_LAYERS}
       --jinja
+      --predict 4096
     ttl: 600
+    # --predict 4096 caps a single completion's generation length
+    # (llama-server default: -1, unbounded) -- same fix as the CPU
+    # config/models.yaml.example, issue #82. The underlying risk (a
+    # runaway/repetition-loop generation running forever, worse: a
+    # client disconnect doesn't cancel it server-side, see issue #86 and
+    # ../../shared/hardware-sizing.md's 2026-09-10 incident) isn't
+    # specific to CPU inference, so this variant needs the same cap even
+    # though it hasn't been independently reproduced on GPU.

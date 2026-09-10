@@ -36,7 +36,9 @@ Telegram messages.
 - [Starting](#starting)
 - [Verification](#verification)
 - [Silent-failure watchdog (optional)](#silent-failure-watchdog-optional)
+- [Stuck-generation watchdog (optional, issue #86)](#stuck-generation-watchdog-optional-issue-86)
 - [Common operations](#common-operations)
+- [Docker commands reference](#docker-commands-reference)
 - [Managing models](#managing-models)
 - [Scripts reference](#scripts-reference)
 - [Troubleshooting](#troubleshooting)
@@ -175,7 +177,7 @@ tracks every run's outcome in `~/.hermes/silent-failure-watchdog.state.json`;
 anyone logged in, and `95-hermes-watchdog-status` (installed above) shows a
 persistent SSH login-banner warning for as long as the failure lasts.
 
-### Stuck-generation watchdog (optional, issue #86)
+## Stuck-generation watchdog (optional, issue #86)
 
 llama.cpp/llama-swap don't cancel a generation when hermes's own client
 disconnects — a stuck request can occupy `llama-server`'s single slot far
@@ -214,6 +216,32 @@ docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 # from YOUR OWN machine instead (issue #87): pull + recreate over SSH
 ./scripts/update-remote.sh <your-ssh-host-alias>
 ```
+
+## Docker commands reference
+
+Every `docker`/`docker compose` invocation actually used anywhere in this
+platform's tooling — scripts, this README, and CI — audited directly
+against the source (`grep`) rather than reconstructed from memory,
+2026-09-10. Two `docker` forms appear: `docker compose <cmd>` (run from
+this directory, operates on the whole project) and bare `docker exec
+<container-name>` (used by scripts invoked by systemd, which can't always
+assume the working directory — see `silent-failure-watchdog.sh` and
+`stuck-generation-watchdog.sh`). Functionally near-identical for `exec`;
+both are listed below because both appear in this repo's own scripts.
+
+| Command | Used by | What it does |
+|---|---|---|
+| `docker compose version` | `provision.sh` | Checks the Compose plugin is installed before continuing (installs `docker-compose-plugin` via `apt-get` if missing) |
+| `docker compose up -d [service]` | `provision.sh` (first boot), `update-remote.sh`, `test/smoke-vps.sh`, manual | Starts/recreates one service (or all, with no argument) — also how a `.env`/`data/models.yaml` change gets picked up when the target service doesn't support live-reload |
+| `docker compose ps [service] [--format ...]` | `provision.sh` (`--format '{{.Health}}'`, waits for llama-swap healthy), `update-remote.sh` (`--format '{{.Status}}'`, waits for `Up`), manual | Checks container health/status |
+| `docker compose logs [service] [-f\|--since ...\|--tail N]` | manual, both watchdogs (`--since`, to scope the window checked each run) | Prints service logs — `-f` follows live, `--since`/`--tail` bound how much history |
+| `docker compose exec <service> <cmd>` | manual (`hermes doctor`, `hermes gateway setup`, `hermes sessions ...`, `hermes backup`, `hermes cron`, `hermes prompt-size`), `stuck-generation-watchdog.sh` (`ps` inside `llama-swap`) | Runs a command inside an already-running container, from this compose project's own directory |
+| `docker exec <container-name> <cmd>` | `silent-failure-watchdog.sh`, `stuck-generation-watchdog.sh` | Same as `compose exec`, addressed by container name instead — used where the caller (a systemd unit) can't rely on its working directory being this project's directory |
+| `docker compose cp <src> <dst>` | Common operations (backup archive out), `scripts/build-agent-template.sh` (config/skills in), `scripts/provision-user.sh` (per-user `config.yaml` round-trip) | Copies a file into or out of a running container |
+| `docker compose restart <service>` | manual, troubleshooting | Restarts one service without recreating it — `hermes` to pick up a `.env` change ([`../shared/telegram-setup.md`](../shared/telegram-setup.md)'s "Apply the credentials"), `llama-swap` to clear a stuck generation ([`../shared/hardware-sizing.md`](../shared/hardware-sizing.md)'s 2026-09-10 incident) |
+| `docker compose pull [service]` | `update-remote.sh`, Common operations | Downloads the latest image for a service without starting it — the actual "update" step; `ghcr.io/ka8t/hermes:latest` is rebuilt automatically by `.github/workflows/publish-image.yml` on every `docker/**`/`skills/**` push to `main`, so this is what picks that up here |
+| `docker compose down [-v]` | Common operations (stop the stack), `test/smoke-vps.sh` (`-v`, teardown) | Stops and removes containers — data persists in `./data`/`./models` unless `-v` is also passed, which additionally removes volumes (CI-only in this repo; destructive on a real deployment, don't add it here) |
+| `docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .` | Repo root (not this directory) — CI (`.github/workflows/publish-image.yml`) or a manual local build | Builds this repo's own patched image (`docker/patch-web-search-schema.py`, `docker/patch-gateway-setup-telegram-only.py`, the `SOUL.md` appends — see `docker/Dockerfile`'s own comments). This VPS only ever **pulls** the published result (`docker compose pull`) — it never builds the image itself |
 
 ## Managing models
 
