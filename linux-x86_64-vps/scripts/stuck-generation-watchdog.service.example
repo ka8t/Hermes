@@ -1,0 +1,23 @@
+[Unit]
+# Optional: runs stuck-generation-watchdog.sh (see issue #86) — alerts via
+# Telegram (TELEGRAM_HOME_CHANNEL) when llama-server has been running
+# continuously far longer than a generation should ever legitimately
+# take, with no completed request in that whole window. Does NOT restart
+# anything itself — auto-restart was explicitly rejected for v1 (see the
+# script's own header comment and issue #86); a human decides.
+#
+# Triggered by stuck-generation-watchdog.timer, not run directly — this
+# unit is Type=oneshot and has no [Install] section of its own.
+#
+# Install:
+#   sudo cp scripts/stuck-generation-watchdog.service.example /etc/systemd/system/stuck-generation-watchdog.service
+#   sudo cp scripts/stuck-generation-watchdog.timer.example /etc/systemd/system/stuck-generation-watchdog.timer
+#   # edit the REPLACE_WITH_REPO_PATH occurrence below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now stuck-generation-watchdog.timer
+Description=Stuck-generation watchdog for Hermes (issue #86)
+
+[Service]
+Type=oneshot
+WorkingDirectory=REPLACE_WITH_REPO_PATH/linux-x86_64-vps
+ExecStart=REPLACE_WITH_REPO_PATH/linux-x86_64-vps/scripts/stuck-generation-watchdog.sh

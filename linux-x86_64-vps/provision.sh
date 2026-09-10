@@ -223,4 +223,29 @@ else
   esac
 fi
 
+echo ""
+if systemctl is-enabled stuck-generation-watchdog.timer >/dev/null 2>&1; then
+  echo "==> Stuck-generation watchdog already installed and enabled — skipping."
+else
+  read -r -p "Install the stuck-generation watchdog (recommended, issue #86)? [Y/n] " STUCK_WATCHDOG_REPLY
+  case "${STUCK_WATCHDOG_REPLY}" in
+    [nN]*) ;;
+    *)
+      echo "==> llama.cpp doesn't cancel a generation when hermes's own client"
+      echo "    disconnects (see shared/hardware-sizing.md's 2026-09-10"
+      echo "    incident) -- this alerts you via Telegram if llama-server ever"
+      echo "    gets stuck running far longer than a reply should take, instead"
+      echo "    of leaving you waiting with no idea anything is wrong. It does"
+      echo "    NOT restart anything automatically -- you decide."
+      REPO_PATH="$(cd .. && pwd)/linux-x86_64-vps"
+      sed "s|REPLACE_WITH_REPO_PATH|${REPO_PATH}|g" scripts/stuck-generation-watchdog.service.example \
+        > /etc/systemd/system/stuck-generation-watchdog.service
+      cp scripts/stuck-generation-watchdog.timer.example /etc/systemd/system/stuck-generation-watchdog.timer
+      systemctl daemon-reload
+      systemctl enable --now stuck-generation-watchdog.timer
+      echo "==> Watchdog installed and running."
+      ;;
+  esac
+fi
+
 ./scripts/guided-demo.sh

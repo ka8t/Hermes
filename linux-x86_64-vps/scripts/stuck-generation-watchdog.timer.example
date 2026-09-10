@@ -1,0 +1,9 @@
+[Unit]
+Description=Run stuck-generation-watchdog.service every 5 minutes (issue #86)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
