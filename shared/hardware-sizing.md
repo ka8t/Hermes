@@ -141,6 +141,79 @@ causes (under-provisioned thread count, other processes competing for
 the same CPU, or the model itself struggling with the task) — check them
 in that order, don't assume the first hypothesis is the right one.
 
+## Follow-up incident: a stuck generation outlives the client that gave up on it (2026-09-10)
+
+Confirmed live on this repo's own VPS, 2026-09-10 — a different failure
+shape from the 2026-09-03 incident above, caught while investigating a
+Telegram message that got no reply after 55+ minutes.
+
+**What the logs showed:**
+
+- `docker compose ps`: both containers healthy, no crash.
+- `docker compose exec llama-swap ps aux`: `llama-server` at **~710% CPU,
+  continuously, since the request started** — confirmed genuinely active
+  (not hung/idle) by sampling its cumulative CPU time twice, 9s apart:
+  +64s of CPU time in 9s wall time, consistent with ~7 of 8 cores busy the
+  whole way through.
+- hermes's own client-side log, after exactly 3600s: `Stream stale for
+  3600s (threshold 3600s) — no chunks received. ... Killing connection.`
+  followed immediately by `Stream drop on attempt 2/3 — retrying.` — zero
+  bytes, zero chunks reached the client in a full hour, even though the
+  server was demonstrably computing the whole time.
+- `docker compose logs llama-swap`: the same request eventually surfaced
+  there too — `<llama-3.1-8b-instruct> recovered from upstream
+  disconnection during streaming`, `error processing streaming response:
+  no valid JSON data found in stream`, and a completed access log line
+  timed at `59m59.712805491s`. The stream itself broke somewhere between
+  `llama-server` and the client; the 3600s figure is hermes's own watchdog
+  threshold, not proof the underlying request would ever have finished
+  naturally.
+
+**Why the context was this large in the first place:** queried directly
+from `state.db` (not assumed) — the Telegram session behind this message
+was opened 2026-09-03, a week earlier, not a fresh session: 81 accumulated
+messages, 32 tool calls, 17 enabled tools (each with a JSON schema resent
+on every turn), for a total prompt of ~17,488 tokens. The session's
+`compression_fallback_streak`/`compression_ineffective_count` were both
+0 — automatic context compaction had never triggered, because it's gated
+on how full the 65536-token context window is (~27% here), not on how
+slow that many tokens actually are to process on CPU-only hardware. A
+context that's "not full" by the model's own limit can still be a very
+expensive one to prefill every single turn on this hardware.
+
+**Root cause of the hang itself:** `linux-x86_64-vps/config/models.yaml`'s
+`llama-server` command has no `-n`/`--predict` cap on generation length,
+and llama.cpp doesn't reliably treat a client-side disconnect as a
+cancellation signal. hermes's own 3600s watchdog protects the *client*
+from waiting forever, but does nothing server-side — the original
+generation can keep running as a "zombie" after hermes has already given
+up on it, and any retry queues up behind that same never-finishing
+request instead of getting a fresh attempt.
+
+**Fix applied:** `docker compose restart llama-swap` — cleanly killed the
+stuck `llama-server` process and started a fresh one (confirmed by PID
+change and the CPU-time-delta check above showing active work on a
+request that started seconds after the restart, not minutes of
+accumulated backlog). No data loss — this container holds no state of its
+own. The retried request then completed normally.
+
+**Mitigation available today, not yet automated:** hermes has a built-in
+`/compress` slash command (alias `/compact`), usable directly in any
+conversation including over Telegram — `/compact` summarizes older turns,
+`/compact here N` keeps the last N verbatim, `/compact --preview` shows
+the effect first. Running it periodically on a long-lived channel session
+(like a Telegram DM that's been open for a week) keeps the per-turn
+prompt small regardless of the 65536-token ceiling. Not wired into
+`silent-failure-watchdog.sh` or any auto-trigger yet — currently a manual
+step an operator has to remember to run.
+
+**Takeaway**: this repo's context-compaction trigger is sized relative to
+the model's context window, not to this hardware's actual throughput —
+the two can disagree badly on a CPU-only box. A long-lived gateway
+session (weeks of accumulated history) is a slow-response risk even well
+under the context ceiling, independent of the goal-drift/hardware/
+contention causes already covered above.
+
 ## What's covered now
 
 All of #11's original sub-issues are resolved:
