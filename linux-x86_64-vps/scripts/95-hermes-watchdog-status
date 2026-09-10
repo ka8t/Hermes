@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Login banner for issue #85 — shows a warning on every SSH login while
+# silent-failure-watchdog.sh is failing (it's the only thing that alerts
+# a real Telegram user when hermes silently drops their message; if IT
+# fails, nobody finds out unless they go looking, per #85's own
+# writeup). Prints nothing when the watchdog is healthy.
+#
+# Installed by provision.sh into /etc/update-motd.d/ (Debian's dynamic
+# MOTD mechanism — pam_motd runs every /etc/update-motd.d/* script on
+# login and concatenates their stdout into /run/motd.dynamic, regardless
+# of sshd_config's PrintMotd setting, which controls a separate legacy
+# path). Must be executable and root-owned to run.
+set -euo pipefail
+
+STATE_FILE="/root/.hermes/silent-failure-watchdog.state.json"
+
+[ -f "${STATE_FILE}" ] || exit 0
+
+python3 - "${STATE_FILE}" <<'PYEOF'
+import json, sys, time
+
+try:
+    with open(sys.argv[1]) as f:
+        state = json.load(f)
+except Exception:
+    sys.exit(0)
+
+if state.get("status") != "failed":
+    sys.exit(0)
+
+first_failed_at = state.get("first_failed_at")
+reason = state.get("reason") or "unknown reason"
+minutes = int((time.time() - first_failed_at) / 60) if first_failed_at else None
+
+print()
+print("\033[1;31m!! Hermes silent-failure-watchdog has been failing" + (f" for ~{minutes} min" if minutes is not None else "") + " !!\033[0m")
+print(f"\033[1;31m   Reason: {reason}\033[0m")
+print("\033[1;31m   It cannot currently alert Telegram users about silent hermes replies (issue #85).\033[0m")
+print("   Check: sudo journalctl -u silent-failure-watchdog.service -n 20")
+print()
+PYEOF

@@ -1,0 +1,19 @@
+[Unit]
+# Optional, for issue #85. Triggered automatically via OnFailure= in
+# silent-failure-watchdog.service (see that unit's own comment) — never
+# run directly. Runs silent-failure-watchdog-alert.sh, which broadcasts
+# an immediate `wall` message to any logged-in SSH session the moment
+# the watchdog fails, complementing 95-hermes-watchdog-status's
+# persistent login-banner warning (which only a NEW login would see).
+# Together: whoever is already connected gets told immediately, and
+# whoever connects later still sees the banner.
+#
+# Install: covered by silent-failure-watchdog.service.example's own
+# install steps (provision.sh copies both) — no separate timer needed,
+# OnFailure= triggers it, not a schedule.
+Description=Immediate wall alert when silent-failure-watchdog.service fails (issue #85)
+
+[Service]
+Type=oneshot
+WorkingDirectory=REPLACE_WITH_REPO_PATH/linux-x86_64-vps
+ExecStart=REPLACE_WITH_REPO_PATH/linux-x86_64-vps/scripts/silent-failure-watchdog-alert.sh

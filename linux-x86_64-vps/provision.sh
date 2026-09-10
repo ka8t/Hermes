@@ -215,10 +215,21 @@ else
       REPO_PATH="$(cd .. && pwd)/linux-x86_64-vps"
       sed "s|REPLACE_WITH_REPO_PATH|${REPO_PATH}|g" scripts/silent-failure-watchdog.service.example \
         > /etc/systemd/system/silent-failure-watchdog.service
+      # Issue #85: the watchdog above is itself a single point of failure
+      # for #56's whole safety net (found live, 2026-09-10 — a blank
+      # TELEGRAM_BOT_TOKEN made it fail silently for ~35 minutes). These
+      # three pieces make that failure visible instead: an immediate
+      # `wall` broadcast (OnFailure=, wired into the .service file above)
+      # plus a persistent SSH login banner for as long as the failure
+      # lasts.
+      sed "s|REPLACE_WITH_REPO_PATH|${REPO_PATH}|g" scripts/silent-failure-watchdog-alert.service.example \
+        > /etc/systemd/system/silent-failure-watchdog-alert.service
+      cp scripts/95-hermes-watchdog-status /etc/update-motd.d/95-hermes-watchdog-status
+      chmod +x /etc/update-motd.d/95-hermes-watchdog-status
       cp scripts/silent-failure-watchdog.timer.example /etc/systemd/system/silent-failure-watchdog.timer
       systemctl daemon-reload
       systemctl enable --now silent-failure-watchdog.timer
-      echo "==> Watchdog installed and running."
+      echo "==> Watchdog installed and running (with its own failure alert, issue #85)."
       ;;
   esac
 fi

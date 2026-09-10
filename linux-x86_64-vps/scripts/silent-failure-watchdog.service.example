@@ -7,13 +7,27 @@
 # Triggered by silent-failure-watchdog.timer, not run directly — this unit
 # is Type=oneshot and has no [Install] section of its own.
 #
+# OnFailure= (issue #85): this watchdog is itself a single point of
+# failure for #56's whole safety net — found live, 2026-09-10, a blank
+# TELEGRAM_BOT_TOKEN made it fail silently (visible only in
+# journalctl) for ~35 minutes during a legitimate token rotation. When
+# THIS unit fails, silent-failure-watchdog-alert.service fires
+# immediately (a `wall` broadcast); 95-hermes-watchdog-status (installed
+# into /etc/update-motd.d/) separately shows a persistent login banner
+# for as long as the failure lasts, in case nobody's connected when it
+# first happens.
+#
 # Install:
 #   sudo cp scripts/silent-failure-watchdog.service.example /etc/systemd/system/silent-failure-watchdog.service
+#   sudo cp scripts/silent-failure-watchdog-alert.service.example /etc/systemd/system/silent-failure-watchdog-alert.service
 #   sudo cp scripts/silent-failure-watchdog.timer.example /etc/systemd/system/silent-failure-watchdog.timer
-#   # edit the two REPLACE_WITH_REPO_PATH occurrences below
+#   sudo cp scripts/95-hermes-watchdog-status /etc/update-motd.d/95-hermes-watchdog-status
+#   sudo chmod +x /etc/update-motd.d/95-hermes-watchdog-status
+#   # edit the REPLACE_WITH_REPO_PATH occurrences in BOTH .service files
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now silent-failure-watchdog.timer
 Description=Silent-failure watchdog for Hermes (issue #56)
+OnFailure=silent-failure-watchdog-alert.service
 
 [Service]
 Type=oneshot

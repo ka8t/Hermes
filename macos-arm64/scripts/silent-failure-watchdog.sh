@@ -75,7 +75,88 @@ FALLBACK_TEXT="Something went wrong processing your last message and no response
 # A fresh, uniquely-named file per invocation sidesteps that entirely and
 # also makes concurrent runs safe.
 STDERR_CAPTURE="$(mktemp)"
-trap 'rm -f "${STDERR_CAPTURE}"' EXIT
+
+# Issue #85: this watchdog is the ONLY thing standing between a silent
+# hermes failure and the affected Telegram user finding out — but it can
+# itself fail silently (found live on the VPS, 2026-09-10: a blank
+# TELEGRAM_BOT_TOKEN during a legitimate token-rotation window made the
+# VPS's copy of this script exit 2 on every run for ~35 minutes, visible
+# only in the local systemd journal, nobody watching). Track every run's
+# outcome in a state file, and on macOS fire a Notification Center alert
+# directly on every failed run — the local, physically-present equivalent
+# of the VPS's `wall` + login-banner combo (see
+# silent-failure-watchdog-alert.service.example on the VPS side).
+# Notification Center groups repeated alerts from the same source rather
+# than flooding the screen, so unlike `wall` this doesn't need its own
+# transition-only dedup logic — every 5-minute re-check re-notifying
+# while still broken is fine here. LAST_ERROR_MSG is set right before
+# each known failure's `exit`; the trap below also catches any
+# *unforeseen* crash (a python traceback, a future bug) the same way, so
+# this isn't limited to the failure modes anticipated today.
+STATE_FILE="$HOME/.hermes/silent-failure-watchdog.state.json"
+mkdir -p "$(dirname "${STATE_FILE}")"
+LAST_ERROR_MSG=""
+
+# shellcheck disable=SC2016
+WRITE_STATE_PY='
+import json, sys, time
+
+state_file, status, reason = sys.argv[1], sys.argv[2], sys.argv[3]
+now = time.time()
+
+# Preserve the original failure time across consecutive failed runs, so
+# the alert can say "failing since X" instead of just "failing now" —
+# the duration is what tells you whether this is a brief, self-healing
+# blip (e.g. a token rotation in progress) or something that needs
+# attention.
+prev_first_failed_at = None
+try:
+    with open(state_file) as f:
+        prev = json.load(f)
+    if prev.get("status") == "failed":
+        prev_first_failed_at = prev.get("first_failed_at")
+except Exception:
+    pass
+
+data = {"status": status, "reason": reason, "last_checked_at": now}
+if status == "failed":
+    data["first_failed_at"] = prev_first_failed_at or now
+with open(state_file, "w") as f:
+    json.dump(data, f)
+'
+
+# Passed as argv (sys.argv[2]/[3]), not interpolated into the Python
+# source — the reason text can contain quotes/apostrophes (real error
+# text does, e.g. "container 'hermes' not reachable") that would break a
+# naive embed into an inline -c string.
+write_state() {
+  python3 -c "${WRITE_STATE_PY}" "${STATE_FILE}" "$1" "$2" 2>/dev/null || true
+  if [ "$1" = "failed" ] && command -v osascript >/dev/null 2>&1; then
+    osascript -e "display notification \"$2\" with title \"Hermes silent-failure-watchdog failed (issue #85)\" subtitle \"It can no longer alert you about silent hermes replies\"" >/dev/null 2>&1 || true
+  fi
+}
+
+on_exit() {
+  local code=$?
+  rm -f "${STDERR_CAPTURE}"
+  if [ "${code}" -eq 0 ]; then
+    write_state "ok" ""
+  else
+    write_state "failed" "${LAST_ERROR_MSG:-script exited with code ${code}}"
+  fi
+}
+trap on_exit EXIT
+
+on_exit() {
+  local code=$?
+  rm -f "${STDERR_CAPTURE}"
+  if [ "${code}" -eq 0 ]; then
+    write_state "ok" ""
+  else
+    write_state "failed" "${LAST_ERROR_MSG:-script exited with code ${code}}"
+  fi
+}
+trap on_exit EXIT
 
 # shellcheck disable=SC2016
 QUERY='
@@ -118,7 +199,8 @@ for session_id, chat_id, user_msg_id, ts in cur.fetchall():
 case "${HERMES_MODE}" in
   docker)
     if ! docker exec "${HERMES_CONTAINER}" true 2>/dev/null; then
-      echo "Docker container '${HERMES_CONTAINER}' not reachable — set \$HERMES_CONTAINER or start it." >&2
+      LAST_ERROR_MSG="Docker container '${HERMES_CONTAINER}' not reachable"
+      echo "${LAST_ERROR_MSG} — set \$HERMES_CONTAINER or start it." >&2
       exit 2
     fi
     CONFIG_TEXT="$(docker exec "${HERMES_CONTAINER}" cat /opt/data/config.yaml 2>/dev/null || true)"
@@ -126,21 +208,24 @@ case "${HERMES_MODE}" in
     ;;
   native)
     if [ ! -f "${HERMES_HOME}/state.db" ]; then
-      echo "${HERMES_HOME}/state.db not found — has the gateway ever run? (\$HERMES_HOME=${HERMES_HOME})" >&2
+      LAST_ERROR_MSG="${HERMES_HOME}/state.db not found"
+      echo "${LAST_ERROR_MSG} — has the gateway ever run? (\$HERMES_HOME=${HERMES_HOME})" >&2
       exit 2
     fi
     CONFIG_TEXT="$(cat "${HERMES_HOME}/config.yaml" 2>/dev/null || true)"
     RESULT="$(python3 -c "${QUERY}" "${HERMES_HOME}/state.db" "${CONFIG_TEXT}" 2>"${STDERR_CAPTURE}")"
     ;;
   *)
-    echo "Unknown \$HERMES_MODE '${HERMES_MODE}' — expected 'docker' or 'native'." >&2
+    LAST_ERROR_MSG="Unknown \$HERMES_MODE '${HERMES_MODE}'"
+    echo "${LAST_ERROR_MSG} — expected 'docker' or 'native'." >&2
     exit 2
     ;;
 esac
 
 TELEGRAM_BOT_TOKEN="$(grep "^TELEGRAM_BOT_TOKEN=" "${PLATFORM_DIR}/.env" 2>/dev/null | cut -d= -f2-)"
 if [ -z "${TELEGRAM_BOT_TOKEN}" ]; then
-  echo "TELEGRAM_BOT_TOKEN not found in ${PLATFORM_DIR}/.env — cannot send fallback messages." >&2
+  LAST_ERROR_MSG="TELEGRAM_BOT_TOKEN not found in ${PLATFORM_DIR}/.env"
+  echo "${LAST_ERROR_MSG} — cannot send fallback messages." >&2
   exit 2
 fi
 
