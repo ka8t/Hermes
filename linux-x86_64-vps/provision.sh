@@ -298,3 +298,28 @@ else
 fi
 
 ./scripts/guided-demo.sh
+
+echo ""
+echo "==> That demo ran as the single default user. Want more than one real"
+echo "    person talking to this deployment, each with their own isolated"
+echo "    profile (memory, skills, cron jobs) instead of sharing one?"
+read -r -p "    Set up multi-user support now (issue #97)? [y/N] " MULTIUSER_REPLY
+case "${MULTIUSER_REPLY}" in
+  [yY]*)
+    echo ""
+    echo "==> Building the template profile every new user gets cloned from"
+    echo "    (config + skills, always refreshed from this repo — safe to"
+    echo "    re-run any time you change either)."
+    ./scripts/build-agent-template.sh
+    echo ""
+    echo "==> Template ready. Add each real user with:"
+    echo "      ./scripts/provision-user.sh <platform> <chat_id> <profile-slug>"
+    echo "    Example: ./scripts/provision-user.sh telegram 987654321 alice"
+    echo "    For Telegram, <chat_id> is the sender's numeric user_id (in a"
+    echo "    DM, chat_id == user_id — get it via @userinfobot)."
+    echo "    This does NOT decide who's allowed to talk to the bot at all —"
+    echo "    that's TELEGRAM_ALLOWED_USERS / hermes pairing approve, a"
+    echo "    separate decision. See ../shared/multi-user-agents.md."
+    ;;
+  *) ;;
+esac
