@@ -39,6 +39,35 @@ else
   echo "==> No GPU detected — proceeding with the CPU-only path (default)."
 fi
 
+# Issue #96: RAM was detected nowhere before this — a box below
+# hardware-sizing.md's own documented thresholds (~14GB PASS/~12GB FAIL
+# for the default model's footprint at this repo's 65536-token context)
+# would only find out after downloading the model and running the
+# mandatory verify-inference.sh check later. A heads-up before that
+# download (~4.7GB) starts is cheap; it doesn't change what gets
+# installed (no lighter verified alternative exists today, see
+# ../shared/model-selection-guide.md's own "not a real option yet"
+# section) but it means "why is this slow/OOMing" isn't a surprise.
+TOTAL_RAM_GB="$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)"
+if [ "${TOTAL_RAM_GB}" -gt 0 ]; then
+  echo "==> Detected ${TOTAL_RAM_GB}GB RAM."
+  if [ "${TOTAL_RAM_GB}" -lt 12 ]; then
+    echo "!! Below this repo's documented FAIL threshold (~12GB) for the"
+    echo "!! default model at its 65536-token context — see"
+    echo "!! ../shared/hardware-sizing.md's RAM/disk table and"
+    echo "!! ../shared/model-selection-guide.md before continuing. No"
+    echo "!! lighter verified alternative exists today; this will likely"
+    echo "!! swap or OOM, not just run slowly."
+  elif [ "${TOTAL_RAM_GB}" -lt 14 ]; then
+    echo "!! Below this repo's documented PASS threshold (~14GB), above"
+    echo "!! FAIL — usable but tight. See ../shared/hardware-sizing.md."
+  fi
+else
+  echo "!! Could not detect total RAM from /proc/meminfo — skipping the"
+  echo "!! heads-up check. See ../shared/hardware-sizing.md and"
+  echo "!! ../shared/model-selection-guide.md to check manually."
+fi
+
 echo "==> Preparing persistent directories"
 mkdir -p data models
 

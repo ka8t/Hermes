@@ -23,6 +23,34 @@ echo "==> Guided macOS setup. Each step explains itself before it runs — see"
 echo "    README.md for the same steps done by hand, or shared/*.md docs for depth."
 echo ""
 
+# Issue #96: RAM was detected nowhere before this. On macOS, Metal's
+# unified memory means RAM IS the model's memory budget too (no separate
+# VRAM to check) — hardware-sizing.md's own measured threshold (~9GB RSS
+# FAIL / ~11GB WARN / PASS above) is directly comparable to total RAM. A
+# heads-up here is cheap; it doesn't change what gets installed (no
+# lighter verified alternative exists today, see
+# shared/model-selection-guide.md's own "not a real option yet" section)
+# but means "why is this slow/swapping" isn't a surprise later.
+TOTAL_RAM_GB="$(($(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1024 / 1024 / 1024))"
+if [ "${TOTAL_RAM_GB}" -gt 0 ]; then
+  echo "==> Detected ${TOTAL_RAM_GB}GB RAM."
+  if [ "${TOTAL_RAM_GB}" -lt 9 ]; then
+    echo "!! Below this repo's documented FAIL threshold (~9GB RSS measured"
+    echo "!! for the default model) — see shared/hardware-sizing.md and"
+    echo "!! shared/model-selection-guide.md before continuing. No lighter"
+    echo "!! verified alternative exists today; this will likely swap or"
+    echo "!! OOM, not just run slowly."
+  elif [ "${TOTAL_RAM_GB}" -lt 11 ]; then
+    echo "!! Below this repo's documented PASS threshold (~11GB), above"
+    echo "!! FAIL — usable but tight. See shared/hardware-sizing.md."
+  fi
+else
+  echo "!! Could not detect total RAM via sysctl — skipping the heads-up"
+  echo "!! check. See shared/hardware-sizing.md and"
+  echo "!! shared/model-selection-guide.md to check manually."
+fi
+echo ""
+
 if [ ! -f .env ]; then
   cp .env.example .env
   echo "==> .env created from .env.example."
