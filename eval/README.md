@@ -15,7 +15,7 @@ reference and the small, human-readable contents of `bfcl-workspace/`
 once you run the scripts (downloaded tokenizer files, BFCL's own
 `.env`, generated results/scores — all git-ignored, regenerate anytime).
 
-The two `regression-*.sh` scripts are lighter (stdlib `python3` +
+The three `regression-*.sh` scripts are lighter (stdlib `python3` +
 `sqlite3` only, both already present on any machine that can run
 Hermes) and run against **either** a Docker container or a native
 install — see `lib-hermes-env.sh` below. This is what "native for local
@@ -31,10 +31,12 @@ cd eval
 ./run-bfcl.sh 127.0.0.1 8080       # <llama-swap host> <llama-swap port>
 ./regression-goal-drift.sh         # this repo's own #37 regression case
 ./regression-hallucinated-success.sh   # this repo's own #48 regression case
+./regression-clarify-array.sh      # this repo's own #88 regression case
 
-# Same two checks against a native (no-Docker) install instead:
+# Same three checks against a native (no-Docker) install instead:
 HERMES_MODE=native ./regression-goal-drift.sh
 HERMES_MODE=native ./regression-hallucinated-success.sh
+HERMES_MODE=native ./regression-clarify-array.sh
 ```
 
 ## Scripts reference
@@ -146,3 +148,20 @@ false claim of success, since nothing false is said either). #48's
 confirmed insufficient when the false claim originates inside a
 delegated subagent's own fabricated summary — see
 `shared/model-notes.md`'s #48 section.
+
+**`regression-clarify-array.sh`** — this repo's own regression case for
+issue #88: unlike the two above, deliberately **not** an end-to-end
+model-behavior test — whether the model happens to call `clarify` with
+a malformed `questions` param on any given run is sampling-variance-
+dependent (same caveat as `regression-goal-drift.sh` above) and
+wouldn't reliably test the *fix* itself. Instead calls
+`clarify_tool.py`'s `_normalize_questions()` directly inside the
+container with the exact malformed shape reproduced live 2026-09-10 (a
+bare `{"question": "..."}` instead of a one-entry array) and checks it
+now succeeds, that a genuinely valid array still works, and that a
+genuinely invalid input is still rejected — deterministic, no live
+model call needed, runs in under a second. Verifies the build-time
+patch (`docker/patch-clarify-questions-array.py`) is actually present
+and working in a running deployment's image, not just that it exists as
+a source file — see `shared/model-notes.md`'s "`clarify` itself
+root-caused and fixed" section for the full root-cause writeup.

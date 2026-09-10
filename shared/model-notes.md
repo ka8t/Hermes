@@ -538,6 +538,66 @@ above this repo's documented worst-case single cold-prefill response
 (~40 min on the CPU-only VPS, see `shared/hardware-sizing.md`) so it
 doesn't fire on an ordinary slow response.
 
+**`clarify` itself root-caused and fixed at the code level (2026-09-10,
+issue #88).** The bug this whole section opened with — `clarify` failing
+with `"questions must be an array of question objects."` — was only ever
+worked around at the skill level until now (`clarify-agent-intent/SKILL.md`
+telling the model to avoid the tool entirely, quoted at the top of this
+section). That workaround only helps when the model has actually loaded
+`clarify-agent-intent` — reproduced live, 2026-09-10, on a plain Telegram
+"Bonjour" that never touched any agent-creation skill at all: the model
+reached for `clarify` unprompted, sent `questions` as a bare object
+(`{"question": "..."}`) instead of a one-entry array, hit the exact same
+error, and — because hermes-agent's own tool-loop guardrail explicitly
+forbids falling back to text mid-loop — spiraled through 8 identical
+failures over several minutes before a hard stop kicked in. Root-caused by
+reading `tools/clarify_tool.py` directly on the running container: the
+schema is correct and explicit ("a single question is a one-entry array"),
+this is the model not following it, in a **different** exact shape than
+the Python-`repr()`-string pattern documented above for `delegate_task`/
+`skill_manage` (a bare dict, not a stringified list) — the same general
+"this model mishandles array-typed tool parameters" weakness, a distinct
+specific failure to add to the list, not a duplicate of the earlier one.
+
+Also explains a separate mystery from the same test session: the model's
+one successful `memory` write during that original 2026-09-03 incident
+above ("watch subreddit for AI news") was still sitting in
+`MEMORY.md`/`USER.md` a week later, and — being always-loaded, cross-session
+context — caused a completely fresh "Bonjour" to spontaneously drift
+toward re-attempting the old Reddit-agent task, independent of the
+`clarify` bug. `hermes memory reset` clears it; nothing in this repo did
+so automatically when the session itself was deleted (session and
+long-term memory are separate stores).
+
+**The fix**: `docker/patch-clarify-questions-array.py` (build-time patch,
+same pattern as `patch-web-search-schema.py` above) extends
+`_normalize_questions()`'s existing bare-string-item tolerance
+(`["Q1?"]` → `[{"question": "Q1?"}]`) one level up — a bare dict for the
+whole `questions` param is now coerced into a one-entry array before the
+array-type check runs. A code-level fix, not a skill instruction —
+unlike the `web-search-query-only` skill mitigation above (removed,
+ineffective), this one doesn't depend on the model choosing to follow
+guidance; the tool itself now accepts the shape this model actually
+produces. Complements, doesn't replace, `clarify-agent-intent/SKILL.md`'s
+own avoidance advice, which exists partly for a separate reason (the
+tool asks its questions one at a time on messaging platforms, defeating
+single-message batching) unrelated to this bug.
+
+Verified: a full local `--no-cache` rebuild of `docker/Dockerfile` with
+all three patches together, a direct unit check of
+`_normalize_questions()` against bare-dict/valid-array/invalid-string
+inputs, and live deployment to the VPS via the new `update-remote.sh`
+(issue #87) — confirmed the patched code present in the freshly recreated
+container.
+
+**Not fixed**: the same bare-object/array-confusion weakness likely
+affects `delegate_task`'s `tasks` and `skill_manage`'s `operations`
+too (both documented above with the Python-repr-string variant) —
+`clarify` was root-caused and patched because it's what actually
+reproduced this session, not because it's uniquely affected. Worth
+auditing the other array-typed tool parameters the same way before
+assuming they're fine.
+
 ### Model comparison for #37/#48's failure classes (issue #55, 2026-09-04)
 
 Following the "stop patching SOUL.md, evaluate models instead" decision
