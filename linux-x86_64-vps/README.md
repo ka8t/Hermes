@@ -322,6 +322,24 @@ refused, not overwritten, and no profile is created in that case). Does
 `TELEGRAM_ALLOWED_USERS` / `hermes pairing approve`, a human decision made
 before this script ever runs.
 
+**`scripts/prune-bundled-skills.sh`** — added 2026-09-10 (issue #99). No
+required parameters (optional env vars: `HERMES_MODE`, `docker` (default)
+or `native`; `HERMES_CONTAINER`, default `hermes`). The base image bundles
+58 skills by default — this repo only added 3 (agent-creation ×2,
+reliability ×1) — and every one of them rides on the system prompt of
+*every* turn regardless of whether this deployment ever uses it. Archives
+(not deletes — reversible via `restore_skill()`, same mechanism) the ones
+irrelevant to a monitoring/reporting agent's actual scope, keeping the 3
+this repo added plus `hermes-agent`, `email-inbox-triage`/`himalaya`,
+the `research` category (`arxiv`/`competitor-news-monitor`/
+`grounded-citations`/`llm-wiki`), `youtube-content`, and
+`blocked-page-recovery`. Idempotent (an already-pruned or protected skill
+is reported and skipped, not an error). Confirmed live, 2026-09-10: system
+prompt dropped from 15,614 to 11,101 characters (-29%) on the real
+Telegram platform context (`hermes prompt-size --json --platform
+telegram`), 12 skills left in the index, down from 55 non-`ka8t-hermes`
+ones.
+
 **`scripts/verify-inference.sh`** — no parameters (optional env var:
 `LLAMA_URL`, default `http://127.0.0.1:8080`). The mandatory
 post-provisioning check (issue #27): measures *real* prompt-processing
