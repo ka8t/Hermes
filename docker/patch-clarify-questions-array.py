@@ -1,17 +1,30 @@
 #!/usr/bin/env python3
-"""Build-time patch — make the `clarify` tool tolerate a single question
-object where `questions` should be a one-entry array.
+"""Build-time patch — make the `clarify` tool tolerate the two malformed
+shapes this model actually sends for `questions` instead of a real array.
 
-Confirmed live, 2026-09-10 (a Telegram "Bonjour" test, reproduced 8
-times in a row before hermes-agent's own loop guardrail forced a stop):
-Llama-3.1-8B-Instruct calls `clarify` with `questions` as a bare object
-(`{"question": "..."}`) instead of the schema's required one-entry array
-(`[{"question": "..."}]`) on effectively every first clarify call,
-regardless of session/memory state (reproduced against both a week-old
-polluted session and a genuinely fresh one with cleared memory) — this
-is the model not reliably following its own tool schema
-(CLARIFY_SCHEMA in tools/clarify_tool.py already says plainly "a single
-question is a one-entry array"), not a schema bug.
+**Shape 1, confirmed live 2026-09-10** (a Telegram "Bonjour" test,
+reproduced 8 times in a row before hermes-agent's own loop guardrail
+forced a stop): Llama-3.1-8B-Instruct calls `clarify` with `questions`
+as a bare object (`{"question": "..."}`) instead of the schema's
+required one-entry array (`[{"question": "..."}]`).
+
+**Shape 2, confirmed live 2026-09-11** (a CLI oneshot smoke test after
+fixing shape 1): the same model instead sends `questions` as a **JSON
+string containing the array**, properly escaped
+(`"[{\\"question\\": \\"...\\"}]"`) rather than a native JSON array
+value — the exact same double-encoding mistake already documented in
+shared/model-notes.md for `delegate_task`'s `tasks` param and
+`skill_manage`'s `operations` param, now confirmed on `clarify` too, in
+a different specific shape than shape 1. Reproduced 9/9 times across a
+Telegram session and two separate CLI oneshots before being root-caused
+by reading the raw `tool_calls` JSON directly from state.db (not
+assumed from the generic error message, which is identical for both
+shapes).
+
+Neither is a schema bug — CLARIFY_SCHEMA in tools/clarify_tool.py
+already says plainly "a single question is a one-entry array"; this is
+the model not reliably following its own tool schema, in two different
+ways.
 
 hermes-agent's own tool-call loop guardrail (agent/tool_guardrails.py)
 explicitly instructs the model to "keep using tools" rather than fall
@@ -22,11 +35,11 @@ at all — see shared/hardware-sizing.md's 2026-09-10 incident.
 
 `_normalize_questions()` already tolerates a bare-string item inside an
 otherwise-valid array (`["Q1?"]` -> `[{"question": "Q1?"}]`) — this
-patch extends the same one-argument-shape tolerance one level up: a
-bare dict for the whole `questions` param becomes a one-entry array
-before the existing array-type check runs, so the single most common
-malformed shape from this model succeeds instead of erroring and
-triggering the loop guardrail.
+patch extends the same one-argument-shape tolerance one level up,
+handling both malformed shapes before the existing array-type check
+runs: a bare dict becomes a one-entry array, and a string is tried as
+JSON first (used if it decodes to a list or dict) before falling
+through to the original rejection for anything genuinely invalid.
 """
 import pathlib
 import sys
@@ -37,7 +50,23 @@ text = TARGET.read_text()
 OLD = '''    if not isinstance(questions, list):
         return None, "questions must be an array of question objects."'''
 
-NEW = '''    if isinstance(questions, dict):
+NEW = '''    if isinstance(questions, str):
+        # ka8t/Hermes: tolerate `questions` sent as a JSON-encoded string
+        # instead of a native array -- confirmed live, 2026-09-11,
+        # Llama-3.1-8B double-encodes the array as a string
+        # (`"[{\\"question\\": ...}]"`), the same class of mistake already
+        # documented in shared/model-notes.md for delegate_task/
+        # skill_manage's array params. Only used if it actually decodes to
+        # a list or dict; anything else falls through to the original
+        # rejection below. See docker/patch-clarify-questions-array.py.
+        import json as _json
+        try:
+            _decoded = _json.loads(questions)
+        except (ValueError, TypeError):
+            _decoded = None
+        if isinstance(_decoded, (list, dict)):
+            questions = _decoded
+    if isinstance(questions, dict):
         # ka8t/Hermes: tolerate a single question object instead of a
         # one-entry array -- confirmed live, 2026-09-10, Llama-3.1-8B
         # repeatedly calls `clarify` with `questions` as a bare object
@@ -60,4 +89,4 @@ if OLD not in text:
     )
 
 TARGET.write_text(text.replace(OLD, NEW, 1))
-print("Patched clarify_tool.py: _normalize_questions() now accepts a bare question object.")
+print("Patched clarify_tool.py: _normalize_questions() now accepts a bare question object or a JSON-encoded string.")
