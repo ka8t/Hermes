@@ -24,6 +24,7 @@ models:
       --n-gpu-layers ${env.LLAMA_GPU_LAYERS}
       --jinja
       --predict 4096
+      --repeat-penalty 1.1
     ttl: 600
     # --predict 4096 caps a single completion's generation length
     # (llama-server default: -1, unbounded) -- same fix as the CPU
@@ -33,3 +34,8 @@ models:
     # ../../shared/hardware-sizing.md's 2026-09-10 incident) isn't
     # specific to CPU inference, so this variant needs the same cap even
     # though it hasn't been independently reproduced on GPU.
+    #
+    # --repeat-penalty 1.1 (default: 1.00, disabled) -- same as the CPU
+    # config; tested and disproven as a fix for the "peg-native format"
+    # parse failure (issue #101) -- see that file's matching comment for
+    # the actual root cause and fix.

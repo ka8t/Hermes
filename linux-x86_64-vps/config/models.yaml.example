@@ -25,6 +25,7 @@ models:
       -ctk q8_0
       -ctv q8_0
       --predict 4096
+      --repeat-penalty 1.1
     ttl: 600
     # -ctk/-ctv q8_0 quantize the KV cache (llama-server default: f16) —
     # cuts llama-server's RSS at this repo's 65536-token context from
@@ -47,3 +48,14 @@ models:
     # long enough for a real tool-calling turn, short enough to cap a
     # runaway/repetition-loop generation instead of letting it run
     # unbounded toward the 65536-token context ceiling.
+    #
+    # --repeat-penalty 1.1 (llama-server default: 1.00, i.e. disabled) --
+    # added 2026-09-11 while investigating the "peg-native format" parse
+    # failure (issue #101), on evidence from an upstream bug report
+    # (ggml-org/llama.cpp#26381) describing degenerate repetitive output.
+    # Tested live, disproven as a fix for #101 -- the actual root cause,
+    # confirmed 2026-09-13, is unrelated (see SOUL.md's #101 patch in
+    # ../../docker/Dockerfile and ../../macos-arm64/scripts/
+    # patch-native-hermes.sh). Left in place as a harmless, conservative
+    # default (this deployment shipped with repetition penalty fully
+    # off), not as a claim it fixes anything here.

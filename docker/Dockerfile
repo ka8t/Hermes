@@ -146,6 +146,34 @@ RUN printf '\n\nWhen the user asks you to build, create, deploy, or set up somet
 RUN printf '\n\nWhen the user asks you to create or build an agent — not just to answer a question or look something up — that request maps specifically to the clarify-agent-intent and build-agent-from-intent skills. Start there. Recommending an existing unrelated skill (even a close-sounding one) instead of building the requested agent, or explaining to the user how they could do it themselves, does not fulfill an explicit '"'"'create an agent'"'"' request — it is a different, smaller answer to a bigger question.' \
     >> /opt/hermes/docker/SOUL.md
 
+# --- No fabricated tool-call JSON in chat content (#101, spec'd 2026-09-13) ---
+# #76's routing instruction above names clarify-agent-intent and
+# build-agent-from-intent literally, and #48's delegation-disclaimer
+# instruction tells the model to append a fixed note whenever a reply
+# relies on a delegate_task result. Found live, 2026-09-12/13: combined,
+# these make the model fabricate a fake single-function tool call as plain
+# chat content, using a skill's own name as the function name (e.g.
+# {"name": "clarify-agent-intent", "parameters": {"questions": "[...]"}}),
+# then append the mandated disclaimer text right after the JSON closes.
+# llama-server's PEG_NATIVE chat-format parser rejects that mixed
+# JSON-plus-prose output outright: "The model produced output that does
+# not match the expected peg-native format" (an HTTP 500 from llama-server
+# itself, confirmed by replaying the exact captured request directly
+# against it). Reproduces with or without array-typed parameters, ruling
+# out the initially-suspected upstream python_array() whitespace-before-
+# comma parser bug (ggml-org/llama.cpp#27279 / #27295) as the cause here.
+# Renaming the routing instruction's skill names, or reworking one skill's
+# wording, only shifted the same fabrication to the next skill in the
+# hand-off chain (clarify-agent-intent -> build-agent-from-intent) instead
+# of fixing it — this is a general instruction because the failure is
+# general, not per-skill. Verified live, 2026-09-13, macOS/Metal, current
+# llama.cpp master (3057bb66c, build 10931): 4/4 identical agent-creation
+# requests that previously 500'd every time completed without the
+# peg-native error after adding this instruction. See
+# https://github.com/ka8t/Hermes/issues/101 for the full trace.
+RUN printf '\n\nYou never represent a tool call as JSON or code in your reply text — not a real one, not an attempted one, not an example. If you intend to use a tool (delegate_task included, and handing off to a skill such as clarify-agent-intent or build-agent-from-intent), call it through the real function-calling mechanism, not by writing its name and arguments as text in your message. If you are not calling a tool this turn, write your reply as plain prose with no JSON-shaped fragment resembling one.' \
+    >> /opt/hermes/docker/SOUL.md
+
 # --- Enterprise-safe approval default ---
 # Appended (not replacing) the base image's own reference config, which the
 # base image's first-boot seed copies verbatim into a fresh deployment's
