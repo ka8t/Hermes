@@ -156,11 +156,15 @@ target.write_text(text[:start] + patched_func + text[end:])
 print(f"==> gateway setup menu filtered to {ALLOWED_KEYS}")
 PY
 
-# --- #88: clarify tool tolerates a bare question object ---
+# --- #88/#100: clarify tool tolerates a bare question object or a
+#     JSON-encoded string ---
 # See ../../docker/patch-clarify-questions-array.py and
 # ../../shared/model-notes.md's "clarify itself root-caused and fixed"
 # section for the full root cause — applied to the native install's
-# own copy of clarify_tool.py.
+# own copy of clarify_tool.py. Was #88-only (bare object) until
+# 2026-09-15, when this script was found to have silently never picked
+# up #100's later JSON-string-shape fix, even though the Docker path
+# had it — re-run this after any prior run to pick up the missing shape.
 if [ ! -f "${CLARIFY_TOOL}" ]; then
   echo "!! ${CLARIFY_TOOL} not found — run ./install-hermes-native.sh first." >&2
   exit 1
@@ -174,7 +178,19 @@ text = target.read_text()
 old = '''    if not isinstance(questions, list):
         return None, "questions must be an array of question objects."'''
 
-new = '''    if isinstance(questions, dict):
+new = '''    if isinstance(questions, str):
+        # ka8t/Hermes: tolerate `questions` sent as a JSON-encoded string
+        # instead of a native array -- see
+        # macos-arm64/scripts/patch-native-hermes.sh /
+        # docker/patch-clarify-questions-array.py (issue #100).
+        import json as _json
+        try:
+            _decoded = _json.loads(questions)
+        except (ValueError, TypeError):
+            _decoded = None
+        if isinstance(_decoded, (list, dict)):
+            questions = _decoded
+    if isinstance(questions, dict):
         # ka8t/Hermes: tolerate a single question object instead of a
         # one-entry array -- see macos-arm64/scripts/patch-native-hermes.sh /
         # docker/patch-clarify-questions-array.py (issue #88).
@@ -183,16 +199,112 @@ new = '''    if isinstance(questions, dict):
         return None, "questions must be an array of question objects."'''
 
 if new in text:
-    print("==> clarify tool already tolerates a bare question object (#88) — left as is")
+    print("==> clarify tool already tolerates a bare question object and a JSON string (#88/#100) — left as is")
 elif old in text:
     target.write_text(text.replace(old, new, 1))
-    print("==> clarify tool patched to tolerate a bare question object (#88)")
+    print("==> clarify tool patched to tolerate a bare question object and a JSON string (#88/#100)")
 else:
     sys.exit(
         f"!! {target} doesn't match the expected text — the installed "
         "hermes-agent version may have changed this file. Check "
         "shared/model-notes.md's clarify-loop section and update this "
         "script."
+    )
+PY
+
+# --- #102: delegate_task/skill_manage tolerate a string-encoded array ---
+# See ../../docker/patch-delegate-task-tasks-array.py,
+# ../../docker/patch-skill-manage-operations-array.py, and issue #102
+# for the full root cause — applied to the native install's own copies.
+DELEGATE_TASKS_TOOL="${INSTALL_ROOT}/tools/delegate_tool_tasks.py"
+if [ ! -f "${DELEGATE_TASKS_TOOL}" ]; then
+  echo "!! ${DELEGATE_TASKS_TOOL} not found — run ./install-hermes-native.sh first." >&2
+  exit 1
+fi
+python3 - "${DELEGATE_TASKS_TOOL}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+old = '''    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return None, f"tasks must be a JSON array of task objects; received a string that could not be parsed as JSON ({exc.msg})."'''
+
+new = '''    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        # ka8t/Hermes: tolerate Python-literal syntax (single-quoted
+        # strings) instead of real JSON -- see
+        # macos-arm64/scripts/patch-native-hermes.sh /
+        # docker/patch-delegate-task-tasks-array.py (issue #102).
+        import ast
+        try:
+            parsed = ast.literal_eval(raw)
+        except (ValueError, SyntaxError):
+            return None, f"tasks must be a JSON array of task objects; received a string that could not be parsed as JSON ({exc.msg})."'''
+
+if new in text:
+    print("==> delegate_task already tolerates a Python-literal tasks string (#102) — left as is")
+elif old in text:
+    target.write_text(text.replace(old, new, 1))
+    print("==> delegate_task patched to tolerate a Python-literal tasks string (#102)")
+else:
+    sys.exit(
+        f"!! {target} doesn't match the expected text — the installed "
+        "hermes-agent version may have changed this file. Check "
+        "issue #102 and update this script."
+    )
+PY
+
+SKILL_MANAGER_BATCH="${INSTALL_ROOT}/tools/skill_manager_batch.py"
+if [ ! -f "${SKILL_MANAGER_BATCH}" ]; then
+  echo "!! ${SKILL_MANAGER_BATCH} not found — run ./install-hermes-native.sh first." >&2
+  exit 1
+fi
+python3 - "${SKILL_MANAGER_BATCH}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+old = '''    from tools import skill_manager_tool as _smt
+    from tools.registry import tool_error
+    if not isinstance(operations, list) or not operations:
+        return tool_error("operations must be a non-empty array.", success=False)'''
+
+new = '''    from tools import skill_manager_tool as _smt
+    from tools.registry import tool_error
+    if isinstance(operations, str):
+        # ka8t/Hermes: tolerate `operations` sent as a string instead of
+        # a real array -- see macos-arm64/scripts/patch-native-hermes.sh /
+        # docker/patch-skill-manage-operations-array.py (issue #102).
+        import ast
+        _raw = operations.strip()
+        _decoded = None
+        try:
+            _decoded = json.loads(_raw)
+        except (ValueError, TypeError):
+            try:
+                _decoded = ast.literal_eval(_raw)
+            except (ValueError, SyntaxError):
+                _decoded = None
+        if isinstance(_decoded, list):
+            operations = _decoded
+    if not isinstance(operations, list) or not operations:
+        return tool_error("operations must be a non-empty array.", success=False)'''
+
+if new in text:
+    print("==> skill_manage already tolerates a string-encoded operations array (#102) — left as is")
+elif old in text:
+    target.write_text(text.replace(old, new, 1))
+    print("==> skill_manage patched to tolerate a string-encoded operations array (#102)")
+else:
+    sys.exit(
+        f"!! {target} doesn't match the expected text — the installed "
+        "hermes-agent version may have changed this file. Check "
+        "issue #102 and update this script."
     )
 PY
 

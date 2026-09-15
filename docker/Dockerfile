@@ -78,6 +78,24 @@ RUN python3 /tmp/patch-gateway-setup-allowed-channels.py && rm /tmp/patch-gatewa
 COPY docker/patch-clarify-questions-array.py /tmp/patch-clarify-questions-array.py
 RUN python3 /tmp/patch-clarify-questions-array.py && rm /tmp/patch-clarify-questions-array.py
 
+# --- delegate_task/skill_manage: tolerate a string-encoded array (#102) ---
+# Confirmed live, 2026-09-15, during agent-creation loop testing:
+# Llama-3.1-8B sends delegate_task's `tasks` and skill_manage's
+# `operations` as strings -- Python-literal syntax (single-quoted) for
+# tasks, sometimes JSON-encoded for operations -- instead of a real
+# array, the same class of mistake already fixed on `clarify` above.
+# skill_manage had no string-recovery attempt at all (a bare type
+# check); delegate_task only tried json.loads(), which always rejects
+# Python-literal syntax. Both contribute to the delegate_task/
+# skill_manage retry loops in issue #102 (not the only cause -- some
+# captured failures were genuinely truncated mid-generation, which no
+# parser fallback can fix). See docker/patch-delegate-task-tasks-array.py,
+# docker/patch-skill-manage-operations-array.py, and issue #102.
+COPY docker/patch-delegate-task-tasks-array.py /tmp/patch-delegate-task-tasks-array.py
+RUN python3 /tmp/patch-delegate-task-tasks-array.py && rm /tmp/patch-delegate-task-tasks-array.py
+COPY docker/patch-skill-manage-operations-array.py /tmp/patch-skill-manage-operations-array.py
+RUN python3 /tmp/patch-skill-manage-operations-array.py && rm /tmp/patch-skill-manage-operations-array.py
+
 # --- Verify-before-success, as a mandatory identity instruction (#48) ---
 # The discretionary skill above (verify-before-success, #49) was tested
 # live and found insufficient: the model doesn't reliably choose to
