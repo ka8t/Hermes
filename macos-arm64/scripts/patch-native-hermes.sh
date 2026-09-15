@@ -429,6 +429,219 @@ else:
     )
 PY
 
+# --- #101: recover a fabricated tool-call JSON blob from content ---
+# See ../../docker/patch-chat-completions-recover-tool-call.py and issue #101
+# for the full root cause — applied to the native install's own copy.
+CHAT_COMPLETIONS_TRANSPORT="${INSTALL_ROOT}/agent/transports/chat_completions.py"
+if [ ! -f "${CHAT_COMPLETIONS_TRANSPORT}" ]; then
+  echo "!! ${CHAT_COMPLETIONS_TRANSPORT} not found — run ./install-hermes-native.sh first." >&2
+  exit 1
+fi
+python3 - "${CHAT_COMPLETIONS_TRANSPORT}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+import_old = '''import json
+from typing import Any
+'''
+
+import_new = '''import json
+import re
+from typing import Any
+'''
+
+module_consts_old = '''
+class ChatCompletionsTransport(ProviderTransport):
+'''
+
+module_consts_new = '''
+# ka8t/Hermes: raw chat-template artifacts --skip-chat-parsing exposes when a
+# recovered tool call's remaining content is nothing but this -- see
+# _recover_fabricated_tool_call (issue #101).
+_JUNK_REMAINDER_RE = re.compile(r"^(assistant|user|system)$|^```(?:\\w+)?\\s*```$", re.IGNORECASE)
+_LEADING_ROLE_MARKER_RE = re.compile(r"^(assistant|user|system)\\s*:?\\s*\\n*", re.IGNORECASE)
+
+
+class ChatCompletionsTransport(ProviderTransport):
+'''
+
+methods_old = '''
+    def normalize_response(self, response: Any, **kwargs) -> NormalizedResponse:
+'''
+
+methods_new = '''
+    def _find_json_object(self, text: str, start: int = 0) -> "tuple[int, int] | None":
+        """Span of the first top-level ``{...}`` object in ``text`` from ``start``,
+        respecting string literals so braces inside quoted strings don't confuse the
+        scan. Returns ``(open_idx, close_idx)`` (inclusive) or ``None`` -- ``None`` also
+        for unbalanced input (e.g. a response truncated mid-JSON), which is the correct
+        outcome: nothing safe to recover there."""
+        open_idx = text.find("{", start)
+        if open_idx == -1:
+            return None
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(open_idx, len(text)):
+            ch = text[i]
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return open_idx, i
+        return None
+
+    @staticmethod
+    def _parse_tool_call_json(raw: str) -> "dict | None":
+        """``raw`` (a balanced ``{...}`` span) as a ``{"name": ..., "parameters"|
+        "arguments": {...}}`` dict, tolerating Python-literal (single-quoted) syntax
+        the same way the delegate_task/skill_manage tool patches do -- or ``None`` if
+        it doesn't parse or doesn't have that shape."""
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError):
+            import ast
+            try:
+                parsed = ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return None
+        if not isinstance(parsed, dict):
+            return None
+        name = parsed.get("name")
+        if not isinstance(name, str) or not name.strip():
+            return None
+        args = parsed.get("parameters", parsed.get("arguments"))
+        if args is None:
+            args = {}
+        if not isinstance(args, dict):
+            return None
+        return {"name": name, "arguments": args}
+
+    def _recover_fabricated_tool_call(self, content: str) -> "tuple[ToolCall | None, str | None]":
+        """ka8t/Hermes: a weak model sometimes writes its tool-call intent directly in
+        chat content as ``{"name": "...", "parameters"|"arguments": {...}}`` instead of
+        a real function call -- observed live with llama.cpp's strict `peg-native`
+        chat-format parser rejecting this exact mixed shape outright (`openai.APIError:
+        ... does not match the expected peg-native format`, issue #101, reproduced
+        repeatedly with this deployment's default model). Recovering it here, once,
+        generically for any OpenAI-compatible provider, means a genuine tool-call intent
+        gets executed instead of being lost to a parse error or shown to the user as
+        inert JSON. Conservative by construction -- returns ``(None, None)`` unless the
+        text contains a JSON object with exactly this shape, since ordinary prose
+        essentially never does.
+
+        Only the FIRST such object becomes the real, executed tool call. Observed live:
+        a generation sometimes strings several of these together in one response
+        (``{"name": "skill_view", ...}; {"name": "execute_code", ...}; {"name":
+        "browser_vault_save_login", ...}``) -- whether this is deliberate or not isn't
+        knowable from the text alone, but in the captured examples the later fragments
+        were incoherent with each other (one referenced a Python API,
+        `hermes.skill.create_daily_reminder()`, that doesn't exist anywhere in this
+        codebase) and unrelated to the request. Executing an unverified multi-action
+        bundle from a model with a measured ~52% BFCL score on genuine parallel calls
+        is a real risk independent of intent -- one of the actions seen live was a
+        password-vault write. Every object after the first matching this shape is
+        stripped as noise -- never shown to the user, never executed -- while genuine
+        surrounding prose (e.g. the mandatory delegated-subtask disclaimer) is kept.
+        """
+        if not isinstance(content, str) or not content.strip():
+            return None, None
+        first_call = None
+        pieces: list[str] = []
+        cursor = 0
+        while True:
+            span = self._find_json_object(content, cursor)
+            if span is None:
+                pieces.append(content[cursor:])
+                break
+            start, end = span
+            pieces.append(content[cursor:start])
+            raw = content[start:end + 1]
+            parsed = self._parse_tool_call_json(raw)
+            if parsed is not None:
+                if first_call is None:
+                    first_call = parsed
+                # else: a later fragment shaped like a tool call -- drop it, don't execute or show it.
+            else:
+                pieces.append(raw)  # not a tool call after all -- keep as ordinary text.
+            cursor = end + 1
+        if first_call is None:
+            return None, None
+        remaining = "".join(pieces).strip()
+        # ka8t/Hermes: --skip-chat-parsing (issue #101) exposes raw chat-template
+        # leakage the native parser used to strip -- observed live: the word
+        # "assistant" (the next turn's role marker, generated as literal text, no
+        # special tokens involved -- confirmed via hex dump), either alone trailing
+        # the JSON, or as a leading prefix before otherwise-genuine trailing prose
+        # (e.g. "assistant\\n\\n Note: this involved a delegated subtask..."), and an
+        # empty ```json``` fence. None of this is real content; keeping it would
+        # show the user garbage and, combined with an empty synthetic tool result,
+        # risks two effectively-empty "assistant" turns in a row.
+        remaining = _LEADING_ROLE_MARKER_RE.sub("", remaining).strip()
+        # Separators left over between stripped fragments (";", ",", stray whitespace).
+        remaining = re.sub(r"^[;,\\s]+", "", remaining).strip()
+        if remaining and _JUNK_REMAINDER_RE.match(remaining):
+            remaining = ""
+        return (
+            ToolCall(id=None, name=first_call["name"],
+                     arguments=json.dumps(first_call["arguments"], ensure_ascii=False),
+                     provider_data={"recovered_from_content": True}),
+            remaining or None,
+        )
+
+    def normalize_response(self, response: Any, **kwargs) -> NormalizedResponse:
+'''
+
+recovery_call_old = '''                    finish_reason = "content_filter"
+
+'''
+
+recovery_call_new = '''                    finish_reason = "content_filter"
+
+        # ka8t/Hermes: see _recover_fabricated_tool_call -- issue #101.
+        if not tool_calls:
+            recovered, remaining = self._recover_fabricated_tool_call(content)
+            if recovered is not None:
+                tool_calls = [recovered]
+                content = remaining
+                finish_reason = "tool_calls"
+
+'''
+
+if recovery_call_new in text:
+    print("==> chat_completions.py already recovers a fabricated tool-call JSON blob (#101) — left as is")
+else:
+    _missing = []
+    for _label, _old in (("import", import_old), ("module_consts", module_consts_old), ("methods", methods_old), ("recovery_call", recovery_call_old)):
+        if _old not in text:
+            _missing.append(_label)
+    if _missing:
+        sys.exit(
+            f"!! {target} doesn't match the expected text ({', '.join(_missing)}) — the "
+            "installed hermes-agent version may have changed this file. Check "
+            "issue #101 and update this script."
+        )
+    text = text.replace(import_old, import_new, 1)
+    text = text.replace(module_consts_old, module_consts_new, 1)
+    text = text.replace(methods_old, methods_new, 1)
+    text = text.replace(recovery_call_old, recovery_call_new, 1)
+    target.write_text(text)
+    print("==> chat_completions.py patched to recover a fabricated tool-call JSON blob from content (#101)")
+PY
+
 # --- #48: mandatory verify-before-success instruction in SOUL.md ---
 # See ../../docker/Dockerfile and ../../shared/model-notes.md's #48 section.
 MARKER="Before sending any message that states or implies a task succeeded"

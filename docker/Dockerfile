@@ -114,6 +114,21 @@ RUN python3 /tmp/patch-skill-manage-operations-array.py && rm /tmp/patch-skill-m
 COPY docker/patch-delegate-task-agent-creation-gate.py /tmp/patch-delegate-task-agent-creation-gate.py
 RUN python3 /tmp/patch-delegate-task-agent-creation-gate.py && rm /tmp/patch-delegate-task-agent-creation-gate.py
 
+# --- Recover a fabricated tool-call JSON blob from content (#101) ---
+# Root cause confirmed live, 2026-09-15: Meta-Llama-3.1-8B-Instruct sometimes
+# writes a tool call directly in chat content as JSON instead of issuing a
+# real function call; llama.cpp's strict `peg-native` parser rejects this
+# mixed shape outright, and this deployment's retry loop cannot reliably
+# absorb it (6 consecutive full-conversation failures observed on one
+# prompt in a single day). Paired with `--skip-chat-parsing` on
+# llama-server (see macos-arm64/scripts/run-llama-server.sh,
+# linux-x86_64-vps/docker-compose.yml) so the request never errors in the
+# first place; this patch recovers the genuine tool-call intent from
+# content instead of losing it. See
+# docker/patch-chat-completions-recover-tool-call.py and issue #101.
+COPY docker/patch-chat-completions-recover-tool-call.py /tmp/patch-chat-completions-recover-tool-call.py
+RUN python3 /tmp/patch-chat-completions-recover-tool-call.py && rm /tmp/patch-chat-completions-recover-tool-call.py
+
 # --- Verify-before-success, as a mandatory identity instruction (#48) ---
 # The discretionary skill above (verify-before-success, #49) was tested
 # live and found insufficient: the model doesn't reliably choose to

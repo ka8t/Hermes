@@ -9,7 +9,7 @@ See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used belo
 - [Default model used here](#default-model-used-here)
 - [macOS CPU thread count](#macos-cpu-thread-count-confirmed-not-to-matter-with-full-metal-offload-14)
 - [Two models this repo tried and rejected](#two-models-this-repo-tried-and-rejected-and-why-read-before-changing-the-default)
-- [Known limitation: peg-native format parse failures](#known-limitation-intermittent-peg-native-format-parse-failures)
+- [Fixed: peg-native format parse failures](#fixed-peg-native-format-parse-failures-issue-101-2026-09-15)
 - [Known limitation: malformed nested tool-call arguments](#known-limitation-malformed-nested-tool-call-arguments-beyond-clarify)
 - [delegate_task never routed agent-creation requests correctly (issue #76)](#delegate_task-never-routed-agent-creation-requests-correctly-issue-76--fixed-at-the-code-level)
 - [Going further](#going-further)
@@ -361,32 +361,90 @@ the same instruction-following/tool-selection ceiling documented
 throughout this file. Issue #76 stays open pending that; see the issue
 for current status.
 
-## Known limitation: intermittent "peg-native format" parse failures
+## Fixed: "peg-native format" parse failures (issue #101, 2026-09-15)
 
 Observed live in this repo's own VPS testing, 2026-09-03: `openai.APIError:
 The model produced output that does not match the expected peg-native
 format`, on Meta-Llama-3.1-8B-Instruct, mid-session (not on the first
-message). This is **not** the same bug as the Qwen2.5 issue above, and
-switching models is not the fix — it's a known, still-open family of bugs
-in llama.cpp's own `peg-native` chat-format parser (its newer PEG-grammar
-based tool-call/response parser), reproducible across several unrelated
-model families:
+message). This is **not** the same bug as the Qwen2.5 issue above — it's a
+known family of bugs in llama.cpp's own `peg-native` chat-format parser
+(its PEG-grammar based tool-call/response parser), reproducible across
+several unrelated model families:
 
 - [ggml-org/llama.cpp#26381](https://github.com/ggml-org/llama.cpp/issues/26381) — the exact error string above, filed as its own bug report
 - [ggml-org/llama.cpp#27279](https://github.com/ggml-org/llama.cpp/issues/27279), [#27733](https://github.com/ggml-org/llama.cpp/issues/27733), [#25986](https://github.com/ggml-org/llama.cpp/issues/25986), [#20260](https://github.com/ggml-org/llama.cpp/issues/20260) — the same parser failing on Qwen3, Gemma4, and DeepSeek-family models under different trigger conditions (long tool-call arguments, trailing think-tags, text before a tool call)
-- Some hardening has landed upstream ([#24329](https://github.com/ggml-org/llama.cpp/pull/24329), merged), but the failure class is not resolved as of this repo's llama.cpp build (`0.3.0-dev`, build 10752, commit `b96806d9`)
+- Some hardening has landed upstream ([#24329](https://github.com/ggml-org/llama.cpp/pull/24329), merged), but the failure class was not resolved as of this repo's llama.cpp build (`0.3.0-dev`, build 10752, commit `b96806d9`) at the time of the fix below
 
-There is no llama-server flag that avoids this while keeping structured
-`tool_calls` output — `--skip-chat-parsing` disables the parser entirely,
-but that reproduces the Qwen2.5 symptom above (tool calls back as raw text
-in `content`), trading one bug for another.
+**Root cause, confirmed live, 2026-09-15**: Meta-Llama-3.1-8B-Instruct
+sometimes writes its tool-call intent directly in chat content as
+`{"name": "...", "parameters"|"arguments": {...}}` instead of issuing a
+real function call — `peg-native`'s strict grammar rejects this mixed
+shape outright. Confirmed via `docker compose logs llama-server` across
+several distinct crashes, always the exact same shape, just naming
+different tools (`clarify-agent-intent`, `agent-profile-builder`, ...).
+This deployment's own retry loop cannot reliably absorb it — 6 consecutive
+full-conversation failures on one prompt were observed in a single day of
+testing.
 
-**In practice, this is intermittent and cheap to retry.** Hermes retries
-automatically (`attempt N/3`), and a retry within the same session reuses
-llama.cpp's cached prompt prefix — observed `ttfb=1.84s` on a retry, versus
-20-40 minutes for the original cold prefill on this VPS's 2 vCPUs. Left
-alone, most occurrences resolve within a minute or two on retry; there's
-usually no need to interrupt and start over.
+**The fix, in two parts** (`docker/patch-chat-completions-recover-tool-call.py`,
+mirrored in `macos-arm64/scripts/patch-native-hermes.sh`):
+1. `llama-server` now runs with `--skip-chat-parsing` (forces a pure
+   content parser instead of `peg-native`, regardless of `--jinja`).
+   Confirmed via raw `curl` (bypassing Hermes, this repo's own standard
+   test method): the model still receives the tools schema and still
+   attempts the same tool call, it just lands in `message.content` with
+   `finish_reason: "stop"` and HTTP 200 — never an error.
+2. `ChatCompletionsTransport.normalize_response()` (`agent/transports/
+   chat_completions.py`, used for ANY OpenAI-compatible provider, not
+   just llama-server) recovers that JSON as a real, executed tool call
+   whenever the provider didn't populate `tool_calls` itself — via a
+   brace-matching scanner (tolerates nested braces and Python-literal
+   syntax, same `ast.literal_eval` fallback pattern as the #102 fixes),
+   so the genuine tool-call intent still gets acted on instead of being
+   lost to a parse error or shown to the user as inert JSON. Only the
+   *first* such object in a response becomes the executed call — later
+   ones matching the same shape are stripped as noise, never executed;
+   observed live, some responses stack 2-3 of these together
+   (`{"name": "skill_view", ...}; {"name": "execute_code", ...}; ...`),
+   and at least one captured example named a Python API
+   (`hermes.skill.create_daily_reminder()`) that doesn't exist anywhere in
+   this codebase — executing an unverified multi-action bundle from a
+   model with a measured ~52% BFCL score on genuine parallel calls is a
+   real risk independent of whether the extra fragments were deliberate.
+   Also strips raw chat-template artifacts `--skip-chat-parsing` exposes
+   that the native parser used to clean up (the bare word `assistant` —
+   the next turn's role marker, generated as literal text, confirmed via
+   hex dump, no special tokens involved — either alone or as a leading
+   prefix before genuine trailing prose).
+
+**Verified live, 2026-09-15, macOS/Metal**: 4 consecutive full `hermes -z`
+runs against the exact prompt that reliably crashed before this fix — zero
+peg-native errors in any of them (previously near-100% reproduction on
+that prompt). A genuinely truncated tool call (cut off mid-JSON by a
+token/stream limit) is correctly left unrecovered — the brace-matcher
+can't find a balanced object, so the raw (messy) text is shown as-is
+rather than crashing or silently discarding it; this is a different,
+pre-existing, orthogonal limitation (no parser, upstream or here, can
+safely guess the rest of truncated input) and is not something this fix
+claims to solve.
+
+**A separate, pre-existing bug was exposed as a result, not caused by this
+fix**: sessions no longer die early on the peg-native crash, so they now
+run long enough for the model's own retry loops to repeat an identical
+failing tool call many times. `agent/message_sanitization.py`'s
+`deterministic_call_id()` intentionally hashes `(name, arguments, index)`
+for prompt-cache stability, so repeated identical calls collide on the
+same synthetic id — confirmed live, one `call_id` shared by 34 distinct
+assistant messages in one session — eventually tripping an unrelated
+`HTTP 400: Cannot have 2 or more assistant messages` from a repair pass
+that assumes call ids are unique. Filed separately as
+[issue #104](https://github.com/ka8t/Hermes/issues/104); not fixed here.
+
+**Retry is still the right posture for whatever residual failures remain**
+(truncation, #104's collision path): Hermes retries automatically
+(`attempt N/3`), and a retry within the same session reuses llama.cpp's
+cached prompt prefix — observed `ttfb=1.84s` on a retry, versus 20-40
+minutes for the original cold prefill on this VPS's 2 vCPUs.
 
 ## Known limitation: malformed nested tool-call arguments beyond `clarify`
 

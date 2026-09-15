@@ -64,5 +64,6 @@ services:
       - "4096"
       - --repeat-penalty
       - "1.1"
+      - --skip-chat-parsing
     devices:
       - /dev/dri:/dev/dri

@@ -38,6 +38,14 @@ echo "==> Listening on: 127.0.0.1:${LLAMA_PORT}"
 # llama-swap — see that file's own history and shared/model-notes.md for
 # why each one is here (KV-cache quantization issue #52, --predict cap
 # issue #82, --repeat-penalty issue #101).
+# --skip-chat-parsing (issue #101, added 2026-09-15): forces a pure content
+# parser instead of the strict `peg-native` chat-format parser, which
+# rejects a fabricated tool-call JSON blob in content outright
+# (`does not match the expected peg-native format`) -- confirmed live to
+# still send the tools schema and elicit the same tool-call attempts
+# (raw curl-verified), just landing in `message.content` instead of
+# erroring. Hermes recovers it from there (see
+# docker/patch-chat-completions-recover-tool-call.py).
 exec "${LLAMA_SERVER_BIN}" \
   --port "${LLAMA_PORT}" \
   --host 127.0.0.1 \
@@ -49,4 +57,5 @@ exec "${LLAMA_SERVER_BIN}" \
   -ctk q8_0 \
   -ctv q8_0 \
   --predict 4096 \
-  --repeat-penalty 1.1
+  --repeat-penalty 1.1 \
+  --skip-chat-parsing
