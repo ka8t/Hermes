@@ -11,21 +11,56 @@
 #     multi-GPU selection, not needed for a single-GPU box) — see
 #     ../shared/gpu-setup.md for the source.
 #
-# Also requires data/models.yaml to come from config/models.yaml.example.gpu
-# instead of the CPU-only config/models.yaml.example — see
-# ../shared/gpu-setup.md for the full, step-by-step setup this overlay is
-# part of.
+# No separate models.yaml step needed — like the CPU base file (2026-09-15,
+# issue #101), this overlay runs llama-server directly via `command:`
+# below, no llama-swap in between. It still uses the
+# ghcr.io/mostlygeek/llama-swap:rocm image as the *source* of a working
+# ROCm-enabled llama-server binary at /app/llama-server (building ROCm
+# support ourselves is out of scope) — llama-swap itself, also present in
+# that image, is never invoked. Set LLAMA_GPU_LAYERS in .env (99 = offload
+# every layer).
 #
 # NOT LIVE-VERIFIED: written without ROCm hardware available to test
 # against (see ../shared/gpu-setup.md's status note). Confirm it actually
 # works before trusting it:
-#   docker compose exec llama-swap rocm-smi     # should list llama-server
-#   ./scripts/verify-inference.sh               # tok/s should jump sharply
-#                                                # versus the CPU numbers in
-#                                                # ../shared/hardware-sizing.md
+#   docker compose exec llama-server rocm-smi     # should list llama-server
+#   ./scripts/verify-inference.sh                 # tok/s should jump sharply
+#                                                  # versus the CPU numbers in
+#                                                  # ../shared/hardware-sizing.md
 services:
-  llama-swap:
+  llama-server:
+    build: !reset null
     image: ghcr.io/mostlygeek/llama-swap:rocm
+    # !override, not the default append merge: the base file's
+    # ./vendor/llama.cpp-prebuilt mount is CPU-only-binary-specific and
+    # doesn't apply here (this image already bundles its own GPU binary).
+    volumes: !override
+      - ./models:/models:ro
+    command:
+      - /app/llama-server
+      - --port
+      - "8080"
+      - --host
+      - "0.0.0.0"
+      - --model
+      - /models/${MODEL_FILE}
+      - --ctx-size
+      - ${LLAMA_CTX_SIZE}
+      - --threads
+      - ${LLAMA_THREADS}
+      - --n-gpu-layers
+      - ${LLAMA_GPU_LAYERS}
+      - --jinja
+      - --flash-attn
+      - "on"
+      - -ctk
+      - q8_0
+      - -ctv
+      - q8_0
+      - --predict
+      - "4096"
+      - --repeat-penalty
+      - "1.1"
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri

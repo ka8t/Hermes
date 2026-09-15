@@ -12,22 +12,30 @@ run through the matching section and report back what actually happens,
 see "Verify" in each.
 
 The default path documented everywhere else in this repo (`provision.sh`,
-`docker-compose.yml`) is CPU-only, and stays the default. This page covers
-three **opt-in** alternatives, one per GPU vendor
-[`mostlygeek/llama-swap`](https://github.com/mostlygeek/llama-swap/pkgs/container/llama-swap)
-publishes an image for: `:cuda` (NVIDIA), `:rocm` (AMD), `:intel` (Intel).
-`provision.sh` detects which vendor (if any) is present and points here —
-it does not switch configuration automatically, since each path needs a
-host-level prerequisite this repo can't install or verify for you.
+`docker-compose.yml`) is CPU-only, and stays the default: `llama-server`
+runs directly, no proxy in front (2026-09-15, issue #101 — see
+[`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)). This page covers
+three **opt-in** overlay files, one per GPU vendor, each swapping in a
+GPU-enabled `llama-server` binary sourced from
+[`mostlygeek/llama-swap`](https://github.com/mostlygeek/llama-swap/pkgs/container/llama-swap)'s
+own published images (`:cuda`, `:rocm`, `:intel`) — the only reason
+those images are still involved at all is that they're a convenient,
+already-built source of a GPU-enabled `llama-server` binary for each
+vendor; `llama-swap` itself, also present in each image, is never
+invoked (the overlay's `command:` runs `/app/llama-server` directly).
+`provision.sh` detects which vendor (if any) is present and points
+here — it does not switch configuration automatically, since each path
+needs a host-level prerequisite this repo can't install or verify for
+you.
 
-`config/models.yaml.example.gpu` is shared across all three vendors — it
-only adds `--n-gpu-layers ${env.LLAMA_GPU_LAYERS}` to the `llama-server`
-command line, llama.cpp's own GPU-offload flag, identical across its
-CUDA/ROCm/SYCL backends (already used on the macOS path as `-ngl 99`, see
-[`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)'s macOS topology).
-`LLAMA_GPU_LAYERS` defaults to `99` in `.env.example` (offload every
-layer). Only the Docker Compose overlay (image + device access) differs
-per vendor, below.
+Each overlay adds `--n-gpu-layers ${LLAMA_GPU_LAYERS}` to the
+`llama-server` command line, llama.cpp's own GPU-offload flag, identical
+across its CUDA/ROCm/SYCL backends (already used on the macOS path as
+`-ngl 99`, see [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)'s
+macOS topology). `LLAMA_GPU_LAYERS` defaults to `99` in `.env.example`
+(offload every layer). Only the image, device access, and
+`--n-gpu-layers` differ per vendor — every other flag matches the CPU
+base file exactly.
 
 ## NVIDIA
 
@@ -38,22 +46,23 @@ not install it for you. Follow NVIDIA's own guide:
 [docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
 ```bash
-cp config/models.yaml.example.gpu data/models.yaml
 docker compose -f docker-compose.yml -f docker-compose.gpu-nvidia.yml up -d
 ```
 
 `docker-compose.gpu-nvidia.yml` switches the image to
 `ghcr.io/mostlygeek/llama-swap:cuda` (confirmed to exist on the project's
-own GHCR registry) and requests a GPU via Compose's standard
-device-reservation syntax — the Compose-file equivalent of the
-`--runtime nvidia` flag shown in `mostlygeek/llama-swap`'s own README for
-a plain `docker run` example.
+own GHCR registry) for its bundled `/app/llama-server` binary, requests
+a GPU via Compose's standard device-reservation syntax — the
+Compose-file equivalent of the `--runtime nvidia` flag shown in
+`mostlygeek/llama-swap`'s own README for a plain `docker run` example —
+and runs that binary directly (`command:` overridden, no `llama-swap`
+process involved).
 
 **Verify**:
 ```bash
-docker compose exec llama-swap nvidia-smi   # should list llama-server
-./scripts/verify-inference.sh               # tok/s should jump sharply vs.
-                                             # the CPU numbers in hardware-sizing.md
+docker compose exec llama-server nvidia-smi   # should list llama-server
+./scripts/verify-inference.sh                 # tok/s should jump sharply vs.
+                                               # the CPU numbers in hardware-sizing.md
 ```
 
 ## AMD (ROCm)
@@ -65,18 +74,18 @@ strictly required** — AMD's own docs describe plain device passthrough
 Toolkit exists only for fine-grained multi-GPU selection.
 
 ```bash
-cp config/models.yaml.example.gpu data/models.yaml
 docker compose -f docker-compose.yml -f docker-compose.gpu-amd.yml up -d
 ```
 
 `docker-compose.gpu-amd.yml` switches the image to
-`ghcr.io/mostlygeek/llama-swap:rocm` and passes through `/dev/kfd` (the
-ROCm compute interface, shared by all GPUs) and `/dev/dri` (the DRI
-device nodes) — AMD's own documented manual-passthrough method.
+`ghcr.io/mostlygeek/llama-swap:rocm` for its bundled `/app/llama-server`
+binary, passes through `/dev/kfd` (the ROCm compute interface, shared by
+all GPUs) and `/dev/dri` (the DRI device nodes) — AMD's own documented
+manual-passthrough method — and runs that binary directly.
 
 **Verify**:
 ```bash
-docker compose exec llama-swap rocm-smi     # should list llama-server
+docker compose exec llama-server rocm-smi   # should list llama-server
 ./scripts/verify-inference.sh               # tok/s should jump sharply vs.
                                              # the CPU numbers in hardware-sizing.md
 ```
@@ -88,20 +97,19 @@ working drivers. Run `ls -la /dev/dri` first — you should see `renderD1xx`
 and `cardN` device nodes.
 
 ```bash
-cp config/models.yaml.example.gpu data/models.yaml
 docker compose -f docker-compose.yml -f docker-compose.gpu-intel.yml up -d
 ```
 
 `docker-compose.gpu-intel.yml` switches the image to
-`ghcr.io/mostlygeek/llama-swap:intel` and maps the whole `/dev/dri`
-directory. llama.cpp's own official SYCL Docker docs map specific nodes
+`ghcr.io/mostlygeek/llama-swap:intel` for its bundled `/app/llama-server`
+binary, maps the whole `/dev/dri` directory, and runs that binary
+directly. llama.cpp's own official SYCL Docker docs map specific nodes
 instead (e.g. `/dev/dri/renderD128:/dev/dri/renderD128`,
 `/dev/dri/card0:/dev/dri/card0`) — this repo maps the whole directory for
 portability across machines with different node numbers, since there's no
-Intel GPU available here to confirm which approach the `:intel`
-llama-swap image actually needs. If the whole-directory mapping doesn't
-work, try the exact per-node form from llama.cpp's docs instead (see
-Sources).
+Intel GPU available here to confirm which approach the `:intel` image
+actually needs. If the whole-directory mapping doesn't work, try the
+exact per-node form from llama.cpp's docs instead (see Sources).
 
 **Verify**:
 ```bash
