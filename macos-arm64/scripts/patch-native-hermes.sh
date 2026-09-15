@@ -308,6 +308,117 @@ else:
     )
 PY
 
+# --- #76: delegate_task refuses to delegate agent-creation requests ---
+# See ../../docker/patch-delegate-task-agent-creation-gate.py and issue #76
+# for the full root cause — applied to the native install's own copies.
+python3 - "${DELEGATE_TASKS_TOOL}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+const_old = '''_MIN_BATCH_GOAL_LEN = 10'''
+
+const_new = '''_MIN_BATCH_GOAL_LEN = 10
+
+# ka8t/Hermes: a top-level goal that reads as "create/build a NEW agent"
+# (French or English -- the two languages actually seen in reproductions of
+# issue #76) must never be delegated. The agent-creation flow
+# (agent-intent-interview -> agent-profile-builder) is direct CLI action by
+# the CURRENT agent (`hermes profile create`, `hermes cron create`, ...), not
+# a task a subagent can carry out -- a spawned child never receives the
+# "this is an agent-creation request" framing and picks an unrelated skill
+# instead (see issue #76). Indefinite article only ("a/an/un/une") -- "the
+# agent" refers to the CURRENT agent, not a new one, and must not trigger
+# this. See ../../docker/patch-delegate-task-agent-creation-gate.py.
+_AGENT_CREATION_RE = re.compile(
+    r"\\b(cr[ée]e?r?|cr[ée]ez|cr[ée]ons|construire|configurer|mettre\\s+en\\s+place|"
+    r"create|build|set\\s*up|spin\\s*up|make(?:\\s+me)?|configure|want)\\b"
+    r"(?:\\s+\\w+){0,4}?\\s+(?:un|une|an?)\\b"
+    r"(?:\\s+\\w+){0,2}?\\s+(agent|bot|assistant)\\b",
+    re.IGNORECASE,
+)
+
+
+def _agent_creation_goal_match(goal: str) -> Optional[str]:
+    m = _AGENT_CREATION_RE.search(goal)
+    return m.group(0) if m else None'''
+
+sig_old = '''def _normalize_task_list(
+    goal, context, tasks, output_schema, top_role: str, max_children: int
+) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:'''
+
+sig_new = '''def _normalize_task_list(
+    goal, context, tasks, output_schema, top_role: str, max_children: int, depth: int = 0
+) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:'''
+
+gate_old = '''        if not task.get("goal", "").strip():
+            return None, f"Task {i} is missing a 'goal'."
+    # The single-goal form is exempt from the batch gate (short goals are valid there).'''
+
+gate_new = '''        if not task.get("goal", "").strip():
+            return None, f"Task {i} is missing a 'goal'."
+    # Only at depth 0: the top-level agent handing off its OWN conversation
+    # turn, not a subagent decomposing already-scoped work (see issue #76).
+    if depth == 0:
+        for i, task in enumerate(task_list):
+            goal_text = str(task.get("goal", ""))
+            if matched := _agent_creation_goal_match(goal_text):
+                return None, (
+                    f"Task {i} ({matched!r}) asks to create a new agent/bot/assistant. "
+                    "Do not delegate this -- a subagent never gets the \\"this is an "
+                    "agent-creation request\\" framing and will pick an unrelated skill "
+                    "instead. Handle it yourself: call skill_view(name="
+                    "\\"agent-intent-interview\\") first, then follow it through "
+                    "skill_view(name=\\"agent-profile-builder\\") -- both are direct actions "
+                    "for the current agent (hermes profile create, hermes cron create, "
+                    "...), not a task to hand off."
+                )
+    # The single-goal form is exempt from the batch gate (short goals are valid there).'''
+
+if gate_new in text:
+    print("==> delegate_task already refuses agent-creation goals at depth 0 (#76) — left as is")
+elif const_old in text and sig_old in text and gate_old in text:
+    text = text.replace(const_old, const_new, 1)
+    text = text.replace(sig_old, sig_new, 1)
+    text = text.replace(gate_old, gate_new, 1)
+    target.write_text(text)
+    print("==> delegate_task patched to refuse agent-creation goals at depth 0 (#76)")
+else:
+    sys.exit(
+        f"!! {target} doesn't match the expected text — the installed "
+        "hermes-agent version may have changed this file. Check "
+        "issue #76 and update this script."
+    )
+PY
+
+DELEGATE_TOOL="${INSTALL_ROOT}/tools/delegate_tool.py"
+if [ ! -f "${DELEGATE_TOOL}" ]; then
+  echo "!! ${DELEGATE_TOOL} not found — run ./install-hermes-native.sh first." >&2
+  exit 1
+fi
+python3 - "${DELEGATE_TOOL}" <<'PY'
+import pathlib, sys
+
+target = pathlib.Path(sys.argv[1])
+text = target.read_text()
+
+old = '''    task_list, err = _normalize_task_list(goal, context, tasks, output_schema, top_role, max_children)'''
+new = '''    task_list, err = _normalize_task_list(goal, context, tasks, output_schema, top_role, max_children, depth)'''
+
+if new in text:
+    print("==> delegate_task already passes delegation depth to _normalize_task_list (#76) — left as is")
+elif old in text:
+    target.write_text(text.replace(old, new, 1))
+    print("==> delegate_task patched to pass delegation depth to _normalize_task_list (#76)")
+else:
+    sys.exit(
+        f"!! {target} doesn't match the expected text — the installed "
+        "hermes-agent version may have changed this file. Check "
+        "issue #76 and update this script."
+    )
+PY
+
 # --- #48: mandatory verify-before-success instruction in SOUL.md ---
 # See ../../docker/Dockerfile and ../../shared/model-notes.md's #48 section.
 MARKER="Before sending any message that states or implies a task succeeded"

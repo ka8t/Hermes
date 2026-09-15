@@ -96,6 +96,24 @@ RUN python3 /tmp/patch-delegate-task-tasks-array.py && rm /tmp/patch-delegate-ta
 COPY docker/patch-skill-manage-operations-array.py /tmp/patch-skill-manage-operations-array.py
 RUN python3 /tmp/patch-skill-manage-operations-array.py && rm /tmp/patch-skill-manage-operations-array.py
 
+# --- delegate_task: refuse to delegate agent-creation requests (#76) ---
+# Confirmed live, 2026-09-15, via direct state.db inspection across 6
+# sessions: on "crée un agent"/"create an agent" requests, the model calls
+# delegate_task immediately, WITHOUT first consulting the
+# agent-intent-interview skill despite SOUL.md's explicit routing
+# instruction -- agent-intent-interview was mentioned 0 times across all 6
+# sessions and their subagents. The spawned child never gets the
+# "this is an agent-creation request" framing and picks an unrelated
+# skill instead. A prompt-level fix (reinforcing the same routing
+# instruction in SOUL.md) was tested the same day and had ZERO measured
+# effect over 3 clean runs. This is also the structurally correct fix, not
+# just a workaround: agent-intent-interview/agent-profile-builder are
+# direct CLI actions for the CURRENT agent, never a task a subagent can
+# carry out. See docker/patch-delegate-task-agent-creation-gate.py and
+# issue #76.
+COPY docker/patch-delegate-task-agent-creation-gate.py /tmp/patch-delegate-task-agent-creation-gate.py
+RUN python3 /tmp/patch-delegate-task-agent-creation-gate.py && rm /tmp/patch-delegate-task-agent-creation-gate.py
+
 # --- Verify-before-success, as a mandatory identity instruction (#48) ---
 # The discretionary skill above (verify-before-success, #49) was tested
 # live and found insufficient: the model doesn't reliably choose to
