@@ -35,10 +35,23 @@ not a subagent decomposing already-scoped work) and refuses with
 2026-09-15: after the refusal, the model correctly called
 `skill_view(name="agent-intent-interview")` (previously 0/6 sessions);
 confirmed no false positive on an unrelated, legitimate delegation request
-("Search for 3 recent AI news articles" went through unblocked). Full
-end-to-end profile creation after the redirect is NOT yet reliable — a
-separate, harder follow-through problem, consistent with the same
-instruction-following ceiling — see issue #76 for status.
+("Search for 3 recent AI news articles" went through unblocked).
+
+The error message is deliberately directive ("STOP", "your ONLY next
+action") rather than a plain statement of the rule: a first version just
+named the two skills and, live-tested, only got the model to actually
+finish the CLI steps sometimes (it would re-delegate with a rephrased
+goal, or narrate the plan instead of running it). The `_AGENT_CREATION_RE`
+regex also gained an unconditional "hermes profile" branch after a live
+capture where the retried goal ("Create a new Hermes profile for...")
+dropped the word "agent" entirely and slipped through the original
+pattern. With both changes, 1/3 fresh local runs completed the real
+`hermes profile create` via `terminal` (verified: the profile existed on
+disk); the other 2/3 attempted real execution (not just prose) but picked
+the wrong mechanism (re-delegating, or a fabricated Python import instead
+of the `terminal` tool) — a separate, harder execution-correctness problem
+that remains open, not a regression of the routing fix itself. See issue
+#76 for current status.
 """
 import pathlib
 import re
@@ -67,7 +80,14 @@ _AGENT_CREATION_RE = re.compile(
     r"\\b(cr[ée]e?r?|cr[ée]ez|cr[ée]ons|construire|configurer|mettre\\s+en\\s+place|"
     r"create|build|set\\s*up|spin\\s*up|make(?:\\s+me)?|configure|want)\\b"
     r"(?:\\s+\\w+){0,4}?\\s+(?:un|une|an?)\\b"
-    r"(?:\\s+\\w+){0,2}?\\s+(agent|bot|assistant)\\b",
+    r"(?:\\s+\\w+){0,2}?\\s+(agent|bot|assistant)\\b"
+    # ka8t/Hermes: "hermes profile" is this deployment's own name for what an
+    # "agent" request resolves to (agent-profile-builder's own vocabulary,
+    # `hermes profile create`) -- a rephrased continuation after the first
+    # gate hit ("create a new Hermes profile for...") still needs catching,
+    # unconditionally, since a delegated subagent goal legitimately needing
+    # this exact phrase is not a realistic case on this deployment.
+    r"|\\bhermes\\s+profile\\b",
     re.IGNORECASE,
 )
 
@@ -98,13 +118,16 @@ GATE_NEW = '''        if not task.get("goal", "").strip():
             if matched := _agent_creation_goal_match(goal_text):
                 return None, (
                     f"Task {i} ({matched!r}) asks to create a new agent/bot/assistant. "
-                    "Do not delegate this -- a subagent never gets the \\"this is an "
-                    "agent-creation request\\" framing and will pick an unrelated skill "
-                    "instead. Handle it yourself: call skill_view(name="
-                    "\\"agent-intent-interview\\") first, then follow it through "
-                    "skill_view(name=\\"agent-profile-builder\\") -- both are direct actions "
-                    "for the current agent (hermes profile create, hermes cron create, "
-                    "...), not a task to hand off."
+                    "STOP -- do not call delegate_task again for this, and do not just "
+                    "describe the steps in a chat reply. Your ONLY next action: call "
+                    "skill_view(name=\\"agent-intent-interview\\") right now. A subagent "
+                    "never gets the \\"this is an agent-creation request\\" framing and "
+                    "will pick an unrelated skill instead -- this is not delegatable. "
+                    "After agent-intent-interview's questions are answered, its content "
+                    "will tell you to move to skill_view(name=\\"agent-profile-builder\\") "
+                    "-- that skill's steps (hermes profile create, hermes cron create, "
+                    "...) are commands YOU must run yourself via execute_code/terminal, "
+                    "not text to show the user."
                 )
     # The single-goal form is exempt from the batch gate (short goals are valid there).'''
 

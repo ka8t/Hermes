@@ -11,6 +11,7 @@ See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used belo
 - [Two models this repo tried and rejected](#two-models-this-repo-tried-and-rejected-and-why-read-before-changing-the-default)
 - [Known limitation: peg-native format parse failures](#known-limitation-intermittent-peg-native-format-parse-failures)
 - [Known limitation: malformed nested tool-call arguments](#known-limitation-malformed-nested-tool-call-arguments-beyond-clarify)
+- [delegate_task never routed agent-creation requests correctly (issue #76)](#delegate_task-never-routed-agent-creation-requests-correctly-issue-76--fixed-at-the-code-level)
 - [Going further](#going-further)
 
 ## Non-negotiable constraint: context size
@@ -175,6 +176,183 @@ config) as a fix for issue #101 or as a general reliability upgrade —
 verified worse on the specific failure class this repo cares most
 about (fabricated success), not merely "differently unreliable" like
 Qwen3-8B above.
+
+## delegate_task never routed agent-creation requests correctly (issue #76) — fixed at the code level
+
+**The bug.** On a request phrased as "crée un agent qui..."/"create an
+agent that..." (a request to build a NEW, separate Hermes profile — not
+a task for the current agent), Meta-Llama-3.1-8B-Instruct called
+`delegate_task` immediately, with the raw or lightly-rephrased request as
+the spawned child's `goal`. This is the wrong operation regardless of
+framing: this repo's own `agent-intent-interview`/`agent-profile-builder`
+skills (`skills/agent-creation/`) implement agent creation as direct CLI
+actions by the CURRENT agent (`hermes profile create`, `hermes -p <name>
+cron create ...`) — never something a subagent can carry out, since a
+spawned child never receives the "this is an agent-creation request"
+framing, only the narrow decomposed goal. Confirmed live, 2026-09-15,
+directly against `state.db` across 6 sessions (3 fresh runs and their
+subagents, twice): `agent-intent-interview` was mentioned **zero times**,
+despite `SOUL.md` carrying an explicit routing instruction telling the
+model to consult it first. The spawned subagent picked whatever seemed
+plausible on its own instead — `apple-notes` in one run, bare
+`execute_code` with no skill in another, `arxiv` (a mismatched research
+skill) in the original 2026-09-07 report that opened this issue.
+
+**Prompt-level fix tried and rejected the same day.** Strengthened the
+same `SOUL.md` routing instruction with an explicit, unconditional
+"do not call `delegate_task` before `skill_view(agent-intent-interview)`"
+line. Result: **zero measured effect** over 3 fresh runs — `state.db`
+showed `agent-intent-interview` still mentioned 0 times, `delegate_task`
+still the very first tool call every time, identical to before the
+change. Reverted (no reason to keep prompt length/cost with no measured
+benefit). Consistent with this session's broader finding on the same day
+across unrelated issues (#101, #102): **this specific 8B model has hit a
+real ceiling on prompt-level instruction-following that more or stronger
+wording does not move** — consistent with its own measured BFCL scores
+(`simple_python` 54.75%, `parallel` 52.50%, see
+[`model-evaluation.md`](model-evaluation.md)).
+
+**The fix: a structural check inside `delegate_task` itself**, not
+another prompt. `tools/delegate_tool_tasks.py`'s `_normalize_task_list()`
+now matches every task's `goal` (before any subagent spawns) against
+`_AGENT_CREATION_RE` — a regex covering the French/English creation verbs
+and indefinite-article phrasing actually seen in reproductions ("crée un
+agent", "create an agent", "set up a bot", "j'aimerais créer un agent
+qui..."). A match — checked only at delegation depth 0, i.e. the
+top-level conversational agent handing off its own turn, never a subagent
+decomposing already-scoped work — returns a `tool_error` naming
+`agent-intent-interview`/`agent-profile-builder` instead of spawning
+anything. Deterministic: unlike a prompt instruction, this can't be
+skipped by sampling variance, because it runs in code the model never
+sees or controls.
+
+Threaded through `tools/delegate_tool.py` (`depth = getattr(parent_agent,
+"_delegate_depth", 0)`, already computed for the existing spawn-depth
+limit, now also passed into `_normalize_task_list()`). Shipped as
+`docker/patch-delegate-task-agent-creation-gate.py` (Docker build-time
+patch) and the matching idempotent block in
+`macos-arm64/scripts/patch-native-hermes.sh` (native installs) — same
+pattern as the #102 array-string patches above.
+
+**Verified live, 2026-09-15, macOS/Metal** (direct `state.db` inspection,
+not just terminal output):
+- Both reproduction prompts ("Crée un agent simple qui m'envoie un message
+  tous les jours.", "j'aimerais créer un agent qui me resume les
+  informations tous les matins.") were correctly refused by
+  `delegate_task` every time the model actually called it with an
+  agent-creation-shaped goal (2/2) — the block itself is 100% deterministic
+  once the regex matches, since it's a code check, not model behavior.
+- After the refusal, the model called `skill_view(name="agent-intent-interview")`
+  immediately in one of those two runs — the exact thing that happened
+  0/6 times before this fix — then also viewed `agent-profile-builder`,
+  before retrying `delegate_task` once more (blocked again) and finally
+  stopping with a prose explanation rather than executing
+  `agent-profile-builder`'s CLI steps itself. In the other run, the model
+  stopped at the prose explanation without calling either skill.
+- A regression check with an unrelated, legitimate delegation request
+  ("Peux-tu déléguer une tâche pour chercher les 3 derniers articles sur
+  l'actualité de l'IA et me faire un résumé ?") went through **unblocked**
+  — the subagent spawned and completed the search normally. No false
+  positive observed.
+- A regex bug was caught and fixed during this same testing pass: the
+  initial pattern required the noun (`agent`/`bot`/`assistant`) to
+  immediately follow the article, missing goals with an adjective in
+  between (e.g. "create **a simple** agent that sends a daily message" —
+  the model's own rephrasing of the first reproduction prompt). Fixed by
+  allowing up to 2 filler words between the article and the noun, re-verified
+  against the same positive/negative test set plus this new case before
+  redeploying.
+
+**Iteration 2, same day: making the refusal more directive.** The first
+version's error message only named the two skills to consult, without
+saying what NOT to do. Live-tested (3 more runs): the model reliably
+consulted `agent-intent-interview` after the refusal (routing itself was
+already fixed), but follow-through was inconsistent — one run retried
+`delegate_task` with a rephrased goal and then gave up in prose, another
+described the CLI steps instead of running them. Rewrote the message to be
+explicit and imperative ("STOP — do not call delegate_task again... your
+ONLY next action... commands YOU must run yourself via execute_code/
+terminal, not text to show the user") instead of a plain statement of the
+rule — a tool-result-driven correction arrives in the highest-attention
+position right when it's relevant, unlike a system-prompt instruction
+buried among many others (the kind that had zero measured effect earlier
+today, see below). Also broadened `_AGENT_CREATION_RE` with an
+unconditional `hermes profile` branch: the retried call in one run had
+dropped the word "agent" entirely ("Create a new Hermes profile for the
+daily notification agent" still matched, "...for the daily notification"
+alone would not have).
+
+Re-verified, 3 fresh local runs after both changes:
+- **1/3 fully succeeded end-to-end**: refused → `skill_view(agent-intent-interview)`
+  → `skill_view(agent-profile-builder)` → real `terminal` call running
+  `hermes profile create my-profile` → confirmed on disk
+  (`~/.hermes/profiles/my-profile/` with `.env`, `config.yaml`, etc.,
+  timestamped to the test run) — a genuine, verified success, not a
+  fabricated claim. Test artifact removed after verification.
+- **2/3 attempted real execution but picked the wrong mechanism** instead
+  of stopping in prose (an improvement over iteration 1's behavior, even
+  though incomplete): one re-delegated with a `"Create a new Hermes
+  profile for..."` goal (now caught, see the regex change above) whose
+  spawned subagent tried treating `hermes-profile` as a *skill name*
+  (`skill_view`/`skill_manage`) instead of a CLI command, and looped to
+  failure; the other called `execute_code` with a fabricated
+  `from hermes_tools import hermes_profile_create` Python import that
+  doesn't exist, instead of the `terminal` tool that actually works.
+- This is a **different, narrower problem than the original routing bug**:
+  in all 3 runs the model correctly stopped delegating and correctly
+  consulted both skills — it just doesn't reliably choose the right
+  *execution* tool (`terminal` running the literal shell command from
+  `agent-profile-builder/SKILL.md`) once there. Consistent with this
+  model's general tool-selection ceiling (BFCL scores above), not
+  something a delegate_task-level fix can reach further into.
+
+**VPS verification, 2026-09-15 — a second, unrelated deployment gap found
+along the way.** The first VPS attempts (4 full chat-flow runs) all hit
+the pre-existing "peg-native format" crash (next section) before ever
+reaching `delegate_task` — root-caused via `docker compose logs
+llama-server`: the fabricated tool-call JSON in the crash was named
+`clarify-agent-intent`, the skill's **old** name from before today's
+rename. The VPS's `/opt/data/SOUL.md` (a "seed once on first boot" file,
+see this repo's live-file-vs-template convention) had never been
+live-updated to match Mac's — only the code-level `tools/*.py` patches
+ship inside the Docker image and reach an existing deployment on a
+redeploy; `SOUL.md` and the bundled `skills/` directory do not. Fixed by
+live-editing the VPS's `/opt/data/SOUL.md` to match Mac's exactly, and
+removing the orphaned old-named skill directories
+(`clarify-agent-intent`, `build-agent-from-intent`) that the bundled-skill
+sync step had left behind alongside the new ones rather than replacing.
+This is a genuine, separate finding — worth watching for on any existing
+deployment after a skill-rename change ships, not specific to issue #76.
+
+After that fix, the VPS still hit the peg-native crash once more (a 5th
+attempt) — this time with the *correct* skill name
+(`agent-profile-builder`) in the fabricated JSON, confirming the SOUL.md
+sync worked but also confirming this is genuinely the separate,
+already-documented #101 bug (the model fabricating a tool-call-shaped
+JSON blob in chat content, which the strict parser rejects), not
+something the #76 gate introduced or can fix. Given 5 consecutive
+full-chat-flow attempts on the VPS were pre-empted by this unrelated bug,
+end-to-end chat verification on the VPS was not obtained today. Instead,
+**verified the deployed gate directly**: executing
+`_normalize_task_list(None, None, [{"goal": "Crée un agent simple qui
+m'envoie un message tous les jours.", "context": ""}], None, "leaf", 3,
+0)` inside the running VPS container's own Python environment returns the
+expected refusal — confirming the patched code is present and functions
+correctly on the VPS, independent of whether a full conversation can
+reach it without tripping the unrelated #101 bug first.
+
+**What this fixes vs. what it doesn't.** This closes the specific
+mechanism issue #76 is about — the mismatched/never-consulted skill
+failure can no longer happen, because delegation itself is blocked before
+any subagent is ever spawned, and (after iteration 2) the model reliably
+consults the right skills afterward. It does **not** make full end-to-end
+agent creation reliable: even after correctly consulting both skills, the
+model doesn't consistently pick the right execution tool for
+`agent-profile-builder`'s CLI steps — a separate, narrower
+execution-correctness problem, not a routing problem, and consistent with
+the same instruction-following/tool-selection ceiling documented
+throughout this file. Issue #76 stays open pending that; see the issue
+for current status.
 
 ## Known limitation: intermittent "peg-native format" parse failures
 

@@ -335,7 +335,14 @@ _AGENT_CREATION_RE = re.compile(
     r"\\b(cr[ée]e?r?|cr[ée]ez|cr[ée]ons|construire|configurer|mettre\\s+en\\s+place|"
     r"create|build|set\\s*up|spin\\s*up|make(?:\\s+me)?|configure|want)\\b"
     r"(?:\\s+\\w+){0,4}?\\s+(?:un|une|an?)\\b"
-    r"(?:\\s+\\w+){0,2}?\\s+(agent|bot|assistant)\\b",
+    r"(?:\\s+\\w+){0,2}?\\s+(agent|bot|assistant)\\b"
+    # ka8t/Hermes: "hermes profile" is this deployment's own name for what an
+    # "agent" request resolves to (agent-profile-builder's own vocabulary,
+    # `hermes profile create`) -- a rephrased continuation after the first
+    # gate hit ("create a new Hermes profile for...") still needs catching,
+    # unconditionally, since a delegated subagent goal legitimately needing
+    # this exact phrase is not a realistic case on this deployment.
+    r"|\\bhermes\\s+profile\\b",
     re.IGNORECASE,
 )
 
@@ -366,13 +373,16 @@ gate_new = '''        if not task.get("goal", "").strip():
             if matched := _agent_creation_goal_match(goal_text):
                 return None, (
                     f"Task {i} ({matched!r}) asks to create a new agent/bot/assistant. "
-                    "Do not delegate this -- a subagent never gets the \\"this is an "
-                    "agent-creation request\\" framing and will pick an unrelated skill "
-                    "instead. Handle it yourself: call skill_view(name="
-                    "\\"agent-intent-interview\\") first, then follow it through "
-                    "skill_view(name=\\"agent-profile-builder\\") -- both are direct actions "
-                    "for the current agent (hermes profile create, hermes cron create, "
-                    "...), not a task to hand off."
+                    "STOP -- do not call delegate_task again for this, and do not just "
+                    "describe the steps in a chat reply. Your ONLY next action: call "
+                    "skill_view(name=\\"agent-intent-interview\\") right now. A subagent "
+                    "never gets the \\"this is an agent-creation request\\" framing and "
+                    "will pick an unrelated skill instead -- this is not delegatable. "
+                    "After agent-intent-interview's questions are answered, its content "
+                    "will tell you to move to skill_view(name=\\"agent-profile-builder\\") "
+                    "-- that skill's steps (hermes profile create, hermes cron create, "
+                    "...) are commands YOU must run yourself via execute_code/terminal, "
+                    "not text to show the user."
                 )
     # The single-goal form is exempt from the batch gate (short goals are valid there).'''
 
