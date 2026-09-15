@@ -6,27 +6,26 @@ See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used belo
 acceleration — Docker Desktop for Mac cannot expose the Metal GPU to a
 container (the Linux containers it runs have no access to it), so running it
 in Docker would fall back to CPU-only inference, defeating the purpose.
-[llama-swap](https://github.com/mostlygeek/llama-swap) sits in front of it —
-also native, also lightweight — so you can list more than one model and let
-Hermes switch between them; see
-[`../shared/managing-models.md`](../shared/managing-models.md). **Hermes**,
-on the other hand, doesn't need a GPU (it's just the harness that calls the
-model over HTTP): it runs in a `linux/arm64` Docker container and reaches
-llama-swap via `host.docker.internal`.
+Hermes talks to it directly (no proxy in front) — this deployment always
+runs exactly one model, never swapped at runtime, so a `llama-swap`-style
+router bought nothing here (see `../docs/ARCHITECTURE.md`, 2026-09-15).
+**Hermes**, on the other hand, doesn't need a GPU (it's just the harness
+that calls the model over HTTP): it runs in a `linux/arm64` Docker
+container and reaches llama-server via `host.docker.internal`.
 
 ```
 ┌────────────────────────── Mac (Apple Silicon) ───────────────────────────┐
 │                                                                          │
-│  scripts/run-llama-swap.sh                                              │
+│  scripts/run-llama-server.sh                                            │
 │        │                                                                │
 │        ▼                                                                │
-│  llama-swap (native)  ─────────►  http://host.docker.internal:8080/v1   │
-│        │ spawns on demand                         ▲                     │
+│  llama-server (native, Metal)  ───────►  http://host.docker.internal:8080/v1 │
+│        │                                          ▲                     │
 │        ▼                                          │                     │
-│  llama-server (native, Metal)             ┌───────┴────────┐            │
-│        │                                  │ Docker Desktop │            │
-│        ▼                                  │  ┌───────────┐ │            │
-│  .gguf model (./models)                   │  │  hermes   │ │            │
+│  .gguf model (./models)                   ┌───────┴────────┐            │
+│                                            │ Docker Desktop │            │
+│                                            │  ┌───────────┐ │            │
+│                                            │  │  hermes   │ │            │
 │                                            │  │ (arm64)   │ │            │
 │                                            │  └─────┬─────┘ │            │
 │                                            └────────┼───────┘            │
@@ -44,7 +43,7 @@ llama-swap via `host.docker.internal`.
 - [Installation](#installation)
 - [Starting](#starting)
 - [Verification](#verification)
-- [Running llama-swap in the background (optional)](#running-llama-swap-in-the-background-optional)
+- [Running llama-server in the background (optional)](#running-llama-server-in-the-background-optional)
 - [Silent-failure watchdog (optional)](#silent-failure-watchdog-optional)
 - [Managing models](#managing-models)
 - [Common operations](#common-operations)
@@ -58,8 +57,8 @@ llama-swap via `host.docker.internal`.
 
 - An Apple Silicon Mac (M1/M2/M3/M4...).
 - [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) — only used for the `hermes` container; skip it entirely with the [native alternative](#native-alternative-no-docker-at-all) below.
-- **No compiler needed**: both `llama-server` and `llama-swap` are fetched as
-  official prebuilt binaries (Metal included) by default — see
+- **No compiler needed**: `llama-server` is fetched as an official
+  prebuilt binary (Metal included) by default — see
   [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md). Xcode
   Command Line Tools + CMake are only required if you force a from-source
   `llama-server` build (`LLAMA_BUILD_FROM_SOURCE=1`).
@@ -75,7 +74,7 @@ the VPS's is (Metal handles most of the work) — see
 > `~/Documents/Code/llama.cpp/build/bin/llama-server`, a Homebrew install, the
 > **official prebuilt binary** (default — see
 > [`scripts/download-prebuilt-llama-server.sh`](scripts/download-prebuilt-llama-server.sh)),
-> and only clones + builds into `./vendor` as a last resort. `run-llama-swap.sh`
+> and only clones + builds into `./vendor` as a last resort. `run-llama-server.sh`
 > reads its result from `.env`'s `LLAMA_SERVER_BIN` rather than re-resolving it
 > every time — run it once, paste the printed path into `.env`.
 
@@ -103,23 +102,22 @@ project bind-mounts (Docker) or symlinks (native) its own path onto it.
 ./scripts/download-model.sh                   # downloads the default model into ./models
 mkdir -p data
 cp config/config.yaml.example data/config.yaml
-cp config/models.yaml.example data/models.yaml
 ```
 
 ## Starting
 
-**Terminal 1 — llama-swap + llama-server, natively:**
+**Terminal 1 — llama-server, natively:**
 
 ```bash
-./scripts/run-llama-swap.sh
-# ==> llama-swap : .../vendor/llama-swap/llama-swap
+./scripts/run-llama-server.sh
 # ==> llama-server: .../vendor/llama.cpp-prebuilt/current/llama-server
-# ==> Config      : data/models.yaml
-# ==> Listening on: 127.0.0.1:8080  (web UI at /ui, models at /v1/models)
+# ==> Model       : .../models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+# ==> Listening on: 127.0.0.1:8080
 ```
 
-(llama-swap only starts `llama-server` once a request actually asks for a
-model — the Metal load happens on the first real message, not here)
+This deployment always runs exactly one model, always loaded (no
+idle-unload) — see [`../shared/managing-models.md`](../shared/managing-models.md)
+to change which one.
 
 Keep this terminal open (or install it as a background service, see below).
 
@@ -143,16 +141,16 @@ docker compose exec hermes hermes gateway setup
 # specs alone don't predict real speed (see ../shared/hardware-sizing.md).
 ./scripts/verify-inference.sh
 
-curl http://127.0.0.1:8080/health          # llama-swap
-curl http://127.0.0.1:8080/v1/models       # should list "llama-3.1-8b-instruct"
+curl http://127.0.0.1:8080/health          # llama-server
+curl http://127.0.0.1:8080/v1/models       # should list the loaded model
 docker compose exec hermes hermes doctor   # hermes
 ```
 
 On Telegram, send the bot a message: "can you hear me?". A reply confirms
 the whole chain works: Telegram → hermes container →
-`host.docker.internal:8080` → llama-swap → `llama-server` (Metal) → model →
-back. The first message will be slower than the rest — that's llama-swap
-cold-starting `llama-server` and loading the model into Metal.
+`host.docker.internal:8080` → `llama-server` (Metal) → model → back. The
+first message will be slower than the rest — see
+[`../shared/hardware-sizing.md`](../shared/hardware-sizing.md) for why.
 
 The web dashboard is available at `http://127.0.0.1:9119` (or your Mac's
 LAN IP from another device) if `HERMES_DASHBOARD=1` (the default in
@@ -162,20 +160,20 @@ credentials from `.env`. See
 actually offers (chat, sessions, cron, logs, config, and more) and why to
 reconfigure rather than keep an unknown existing password on a re-run.
 
-## Running llama-swap in the background (optional)
+## Running llama-server in the background (optional)
 
 To avoid keeping a terminal open at all times, a `launchd` service template
 is provided:
 
 ```bash
-cp scripts/com.hermes.llama-swap.plist.example \
-   ~/Library/LaunchAgents/com.hermes.llama-swap.plist
+cp scripts/com.hermes.llama-server.plist.example \
+   ~/Library/LaunchAgents/com.hermes.llama-server.plist
 # edit the 3 occurrences of REPLACE_WITH_REPO_PATH in that file
-launchctl load ~/Library/LaunchAgents/com.hermes.llama-swap.plist
+launchctl load ~/Library/LaunchAgents/com.hermes.llama-server.plist
 ```
 
-Logs: `tail -f macos-arm64/llama-swap.log`. To stop it:
-`launchctl unload ~/Library/LaunchAgents/com.hermes.llama-swap.plist`.
+Logs: `tail -f macos-arm64/llama-server.log`. To stop it:
+`launchctl unload ~/Library/LaunchAgents/com.hermes.llama-server.plist`.
 
 ## Silent-failure watchdog (optional)
 
@@ -225,8 +223,10 @@ repeated `wall` broadcast would).
 
 ## Managing models
 
-Edit `data/models.yaml` to add, change, or remove a model — both llama-swap
-and Hermes pick it up without a restart. See
+To switch models: edit `MODEL_FILE` in `.env` (and download the new
+`.gguf` into `./models`), then restart `llama-server`
+(`./scripts/run-llama-server.sh`) to pick it up — this deployment
+always runs exactly one model at a time, no live swap. See
 [`../shared/managing-models.md`](../shared/managing-models.md).
 
 ## Common operations
@@ -246,7 +246,7 @@ docker compose cp hermes:/opt/data/backup-$(date +%Y%m%d).tar.gz .
 Every `docker`/`docker compose` invocation actually used anywhere in this
 platform's tooling — scripts, this README — audited directly against the
 source (`grep`), 2026-09-10. Only the `hermes` container is Docker on this
-platform (`llama-swap`/`llama-server` run natively, no container) — a
+platform (`llama-server` runs natively, no container) — a
 much shorter list than the VPS's own reference, and no watchdog/update
 scripts run `docker compose` directly here since Docker is optional on
 this platform (see "Native alternative" below) and both watchdogs are
@@ -279,7 +279,7 @@ image automatically if the Dockerfile itself changes. See
 
 ## Native alternative (no Docker at all)
 
-Everything above already runs `llama-server`/llama-swap natively — the only
+Everything above already runs `llama-server` natively — the only
 Docker dependency on this platform is the `hermes` container itself. If you'd
 rather not use Docker Desktop at all, install Hermes natively too, via the
 same official installer this project already relies on:
@@ -314,7 +314,7 @@ Then, same two terminals as before, just without `docker compose`:
 
 ```bash
 # terminal 1 — the model (identical to the Docker path)
-./scripts/run-llama-swap.sh
+./scripts/run-llama-server.sh
 
 # terminal 2 — Hermes, natively, as a persistent launchd service
 hermes gateway install
@@ -324,8 +324,8 @@ hermes gateway setup     # once, to wire up Telegram
 
 `hermes gateway install` sets up its own `launchd` service
 (`ai.hermes.gateway-default`) — no custom service file needed, unlike
-llama-swap's optional one (see
-[`scripts/com.hermes.llama-swap.plist.example`](scripts/com.hermes.llama-swap.plist.example)).
+llama-server's optional one (see
+[`scripts/com.hermes.llama-server.plist.example`](scripts/com.hermes.llama-server.plist.example)).
 Verification, troubleshooting, and everything else on this page apply the
 same way — the only difference is `hermes doctor` / `hermes gateway status`
 run directly instead of through `docker compose exec hermes`.
@@ -407,30 +407,25 @@ the latest official `bin-macos-arm64.tar.gz` release asset from
 `llama-server` binary's path on stdout. Skips the download if the archive is
 already present.
 
-**`scripts/download-llama-swap.sh`** — no parameters. Downloads the latest
-stable `darwin_arm64` release of `llama-swap` into `./vendor/llama-swap/`
-and prints the binary's path on stdout. Called automatically by
-`run-llama-swap.sh` — you don't need to run it yourself unless you want the
-binary path in isolation.
-
 **`scripts/download-model.sh`** — no parameters (reads `MODEL_FILE` /
 `MODEL_REPO` from `.env`, falling back to
 `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` /
 `bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`). Downloads into `./models/` if
 not already present; a no-op otherwise.
 
-**`scripts/run-llama-swap.sh`** — no parameters (reads `LLAMA_PORT` and
-`LLAMA_SERVER_BIN` from `.env`). Requires `data/models.yaml` (copy from
-`config/models.yaml.example`) and `LLAMA_SERVER_BIN` set to an executable.
-Keeps running in the foreground, bound to `127.0.0.1` — install as a
-`launchd` service with `scripts/com.hermes.llama-swap.plist.example` to run
-it unattended.
+**`scripts/run-llama-server.sh`** — no parameters (reads `LLAMA_PORT`,
+`LLAMA_CTX_SIZE`, `MODEL_FILE` and `LLAMA_SERVER_BIN` from `.env`).
+Requires `LLAMA_SERVER_BIN` set to an executable and the model file
+present in `./models`. Runs `llama-server` directly (no proxy in
+front), always loaded, in the foreground, bound to `127.0.0.1` —
+install as a `launchd` service with
+`scripts/com.hermes.llama-server.plist.example` to run it unattended.
 
 **`scripts/verify-inference.sh`** — no parameters (optional env var:
 `LLAMA_URL`, default `http://127.0.0.1:8080`). The mandatory
 post-provisioning check (issue #27): measures *real* prompt-processing
 and generation throughput against this exact running deployment,
-instead of only detecting hardware specs. Requires llama-swap up; Hermes
+instead of only detecting hardware specs. Requires llama-server up; Hermes
 running (Docker or native) is optional — if it's up, also estimates a
 real first-reply latency from `hermes prompt-size`'s actual prompt
 budget for this deployment (PASS under 5 min, WARN 5-20 min, FAIL
@@ -505,22 +500,21 @@ under [`linux-x86_64-vps/scripts/`](../linux-x86_64-vps/scripts/) — see
 
 | Symptom | What to check |
 |---|---|
-| `Connection refused` from the hermes container | llama-swap isn't running — check `./scripts/run-llama-swap.sh` in terminal 1 |
+| `Connection refused` from the hermes container | llama-server isn't running — check `./scripts/run-llama-server.sh` in terminal 1 |
 | `LLAMA_SERVER_BIN is not set to an executable` | Run `./scripts/download-prebuilt-llama-server.sh` and paste its printed path into `.env` |
-| Very slow replies / all-CPU | The `llama-server` startup logs (visible in the llama-swap terminal/log once a model is requested) should mention `ggml_metal_device_init` — if it's missing, check which binary `.env`'s `LLAMA_SERVER_BIN` actually points to |
+| Very slow replies / all-CPU | The `llama-server` startup logs (visible in its terminal/log) should mention `ggml_metal_device_init` — if it's missing, check which binary `.env`'s `LLAMA_SERVER_BIN` actually points to |
 | Tool calls come back as JSON text instead of running | The `--jinja` flag is missing from that model's `cmd` in `data/models.yaml` (present in `models.yaml.example`) |
 | Hermes says a model isn't found | The `model.default` in `data/config.yaml` doesn't match a model ID in `data/models.yaml` exactly — see [`../shared/managing-models.md`](../shared/managing-models.md) |
 | `docker: no matching manifest for linux/arm64` | Stale cached `hermes-agent` image — `docker compose pull` |
 | Dashboard won't start / login loop | `HERMES_DASHBOARD_BASIC_AUTH_USERNAME`/`_PASSWORD` missing or empty in `.env` |
 | Gateway crashes on startup: `FATAL: a live process holds a deleted state.db-wal or state.db-shm inode...` | Docker Desktop's virtiofs bind mount and SQLite's WAL mode don't reliably mix — see [`../shared/telegram-setup.md`](../shared/telegram-setup.md)'s troubleshooting table for the fix (`database.journal_mode: delete`, already the default in `config/config.yaml.example`) |
-| `llama-swap` returns `fork/exec ...: exec format error` for `llama-server`, or any native binary under this repo suddenly "empty" (`file <path>` says `empty`, `ls -la` still shows a real size) | iCloud Drive evicted the file's real content, leaving a stat-only placeholder — confirmed live, 2026-09-07, on `LLAMA_SERVER_BIN` itself (a **recurrence**: an earlier incident with the same root cause, believed resolved after disabling "Optimize Mac Storage," happened again later the same session on a different file — that setting alone isn't a durable fix). Force a re-download: `brctl download <path>`, verify with `file <path>` (should report a real format, e.g. `Mach-O 64-bit executable arm64`) and `md5 <path>` (should NOT be `d41d8cd98f00b204e9800998ecf8427e`, the empty-file hash), then restart llama-swap. See [`../shared/model-evaluation.md`](../shared/model-evaluation.md)'s eval-venv section for an earlier, independent occurrence of the same iCloud mechanism. |
+| `llama-server` fails with `fork/exec ...: exec format error`, or any native binary under this repo suddenly "empty" (`file <path>` says `empty`, `ls -la` still shows a real size) | iCloud Drive evicted the file's real content, leaving a stat-only placeholder — confirmed live, 2026-09-07, on `LLAMA_SERVER_BIN` itself (a **recurrence**: an earlier incident with the same root cause, believed resolved after disabling "Optimize Mac Storage," happened again later the same session on a different file — that setting alone isn't a durable fix). Force a re-download: `brctl download <path>`, verify with `file <path>` (should report a real format, e.g. `Mach-O 64-bit executable arm64`) and `md5 <path>` (should NOT be `d41d8cd98f00b204e9800998ecf8427e`, the empty-file hash), then restart `./scripts/run-llama-server.sh`. See [`../shared/model-evaluation.md`](../shared/model-evaluation.md)'s eval-venv section for an earlier, independent occurrence of the same iCloud mechanism. |
 
 ## Sources
 
 - Prebuilt binaries (what's inside, how they're fetched): [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md)
 - Managing multiple models: [`../shared/managing-models.md`](../shared/managing-models.md)
 - llama.cpp Metal support: [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
-- llama-swap: [mostlygeek/llama-swap](https://github.com/mostlygeek/llama-swap)
 - Hermes image and volumes (multi-arch amd64/arm64 confirmed on Docker Hub): [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
 - `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)
 - Hermes dashboard auth (fail-closed on non-loopback binds): [hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard](https://hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard)

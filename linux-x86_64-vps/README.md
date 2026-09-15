@@ -3,25 +3,24 @@
 See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
 
 A fully Docker Compose stack, designed for a small Ubuntu VPS (e.g. a
-Hostinger KVM2, 2 vCPU / 8 GB RAM): a `llama-swap` container serves one or
-more GGUF models locally (loading/unloading them on demand — see
-[`../shared/managing-models.md`](../shared/managing-models.md) to add more
-than the default one), a `hermes` container runs the agent and connects to
-it internally — no external API key, nothing leaves the server except
-Telegram messages.
+Hostinger KVM2, 2 vCPU / 8 GB RAM): a `llama-server` container serves the
+one GGUF model this deployment runs (see
+[`../shared/managing-models.md`](../shared/managing-models.md) to change
+it), a `hermes` container runs the agent and connects to it internally —
+no external API key, nothing leaves the server except Telegram messages.
 
 ```
 ┌──────────────────────────── VPS (docker compose) ───────────────────────────┐
 │                                                                              │
-│   ┌───────────────────┐    http://llama-swap:8080/v1    ┌───────────────┐   │
-│   │    llama-swap      │ ◄──────────────────────────────│    hermes     │   │
-│   │ ghcr.io/mostlygeek/│        (internal network)       │ nousresearch/ │   │
-│   │  llama-swap:cpu    │                                 │ hermes-agent  │   │
+│   ┌───────────────────┐    http://llama-server:8080/v1  ┌───────────────┐   │
+│   │    llama-server    │ ◄──────────────────────────────│    hermes     │   │
+│   │ (official prebuilt │        (internal network)       │ nousresearch/ │   │
+│   │  binary, own image)│                                 │ hermes-agent  │   │
 │   └─────────┬──────────┘                                 └───────┬───────┘   │
-│             │ spawns /app/llama-server on demand                 │           │
+│             │                                                    │           │
 │             ▼                                                    ▼           │
-│        .gguf model(s)  ◄── ./models (read-only)          ./data (memory,    │
-│        ./data/models.yaml                                 skills, config)   │
+│        .gguf model  ◄── ./models (read-only)              ./data (memory,   │
+│                                                             skills, config)  │
 └──────────────────────────────────────────────────────────────────────────────┘
                                                                     │
                                                                     ▼
@@ -64,12 +63,10 @@ cd Hermes/linux-x86_64-vps
 ```
 
 `provision.sh` installs Docker + the Compose plugin if missing, creates the
-persistent folders (`data/`, `models/`), copies `.env.example` → `.env`,
-`config/config.yaml.example` → `data/config.yaml` and
-`config/models.yaml.example` → `data/models.yaml`, then downloads the
-default model (see [`../shared/model-notes.md`](../shared/model-notes.md) to
-change it, or [`../shared/managing-models.md`](../shared/managing-models.md)
-to add more).
+persistent folders (`data/`, `models/`), copies `.env.example` → `.env`
+and `config/config.yaml.example` → `data/config.yaml`, downloads the
+default model (see [`../shared/model-notes.md`](../shared/model-notes.md)
+to change it) and the official `llama-server` binary.
 
 ## Configuration
 
@@ -87,19 +84,19 @@ to add more).
    macOS, see that doc for why).
 2. **`data/config.yaml`** is already prepared (copied from
    `config/config.yaml.example`): it points Hermes at
-   `http://llama-swap:8080/v1`, the neighboring service's name in
+   `http://llama-server:8080/v1`, the neighboring service's name in
    `docker-compose.yml` — Docker Compose resolves that name automatically, no
    IP address to manage.
-3. **`data/models.yaml`** is also already prepared (copied from
-   `config/models.yaml.example`) with the one default model. Edit it any
-   time to add, change, or remove models — see
-   [`../shared/managing-models.md`](../shared/managing-models.md).
+3. `./scripts/download-prebuilt-llama-server.sh` fetches the official
+   `llama-server` binary this deployment runs directly (no proxy in
+   front — always one model, always loaded). `provision.sh` calls this
+   for you; only needed by hand if you're setting things up manually.
 
 ## Starting
 
 ```bash
-docker compose up -d
-docker compose logs -f llama-swap
+docker compose up -d --build
+docker compose logs -f llama-server
 # wait for it to report healthy (docker compose ps)
 ```
 
@@ -116,9 +113,9 @@ docker compose exec hermes hermes gateway setup
 # specs alone don't predict real speed (see ../shared/hardware-sizing.md).
 ./scripts/verify-inference.sh
 
-# llama-swap health and model list
+# llama-server health and model list
 curl http://127.0.0.1:8080/health
-curl http://127.0.0.1:8080/v1/models       # should list "llama-3.1-8b-instruct"
+curl http://127.0.0.1:8080/v1/models       # should list the loaded model
 
 # agent status
 docker compose exec hermes hermes doctor
@@ -128,9 +125,9 @@ docker compose logs -f hermes
 ```
 
 Then, on Telegram, send the bot a message: "can you hear me?". A reply
-confirms the whole chain works (Telegram → hermes → llama-swap →
-`llama-server` → model → back). The first message will be slower than the
-rest — that's llama-swap cold-starting `llama-server` and loading the model.
+confirms the whole chain works (Telegram → hermes → `llama-server` →
+model → back). The first message will be slower than the rest — see
+[`../shared/hardware-sizing.md`](../shared/hardware-sizing.md) for why.
 
 The web dashboard is available at `http://<vps-ip>:9119` if
 `HERMES_DASHBOARD=1` (the default in `.env.example`) — it requires the
@@ -179,10 +176,10 @@ persistent SSH login-banner warning for as long as the failure lasts.
 
 ## Stuck-generation watchdog (optional, issue #86)
 
-llama.cpp/llama-swap don't cancel a generation when hermes's own client
+llama.cpp doesn't cancel a generation when hermes's own client
 disconnects — a stuck request can occupy `llama-server`'s single slot far
-longer than `config/models.yaml`'s `--predict` cap should allow, with every
-retry queuing up behind it (see
+longer than the `--predict` cap in `docker-compose.yml`'s `llama-server`
+command should allow, with every retry queuing up behind it (see
 [`../shared/hardware-sizing.md`](../shared/hardware-sizing.md)'s 2026-09-10
 incident). `scripts/stuck-generation-watchdog.sh`, run every 5 minutes,
 detects this (no completed request logged in far longer than a completion
@@ -197,15 +194,15 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now stuck-generation-watchdog.timer
 ```
 
-If it fires: `docker compose exec llama-swap ps aux` to confirm, then
-`docker compose restart llama-swap` to clear it.
+If it fires: `docker compose exec llama-server ps aux` to confirm, then
+`docker compose restart llama-server` to clear it.
 
 ## Common operations
 
 ```bash
 docker compose restart hermes        # restarts just the agent
 docker compose exec hermes hermes doctor --fix
-docker compose logs --tail 100 llama-swap
+docker compose logs --tail 100 llama-server
 docker compose down                  # stop (data persists in ./data and ./models)
 docker compose pull && docker compose up -d   # update images (run ON the VPS)
 
@@ -233,21 +230,23 @@ both are listed below because both appear in this repo's own scripts.
 |---|---|---|
 | `docker compose version` | `provision.sh` | Checks the Compose plugin is installed before continuing (installs `docker-compose-plugin` via `apt-get` if missing) |
 | `docker compose up -d [service]` | `provision.sh` (first boot), `update-remote.sh`, `test/smoke-vps.sh`, manual | Starts/recreates one service (or all, with no argument) — also how a `.env`/`data/models.yaml` change gets picked up when the target service doesn't support live-reload |
-| `docker compose ps [service] [--format ...]` | `provision.sh` (`--format '{{.Health}}'`, waits for llama-swap healthy), `update-remote.sh` (`--format '{{.Status}}'`, waits for `Up`), manual | Checks container health/status |
+| `docker compose ps [service] [--format ...]` | `provision.sh` (`--format '{{.Health}}'`, waits for llama-server healthy), `update-remote.sh` (`--format '{{.Status}}'`, waits for `Up`), manual | Checks container health/status |
 | `docker compose logs [service] [-f\|--since ...\|--tail N]` | manual, both watchdogs (`--since`, to scope the window checked each run) | Prints service logs — `-f` follows live, `--since`/`--tail` bound how much history |
-| `docker compose exec <service> <cmd>` | manual (`hermes doctor`, `hermes gateway setup`, `hermes sessions ...`, `hermes backup`, `hermes cron`, `hermes prompt-size`), `stuck-generation-watchdog.sh` (`ps` inside `llama-swap`) | Runs a command inside an already-running container, from this compose project's own directory |
+| `docker compose exec <service> <cmd>` | manual (`hermes doctor`, `hermes gateway setup`, `hermes sessions ...`, `hermes backup`, `hermes cron`, `hermes prompt-size`), `stuck-generation-watchdog.sh` (`ps` inside `llama-server`) | Runs a command inside an already-running container, from this compose project's own directory |
 | `docker exec <container-name> <cmd>` | `silent-failure-watchdog.sh`, `stuck-generation-watchdog.sh` | Same as `compose exec`, addressed by container name instead — used where the caller (a systemd unit) can't rely on its working directory being this project's directory |
 | `docker compose cp <src> <dst>` | Common operations (backup archive out), `scripts/build-agent-template.sh` (config/skills in), `scripts/provision-user.sh` (per-user `config.yaml` round-trip) | Copies a file into or out of a running container |
-| `docker compose restart <service>` | manual, troubleshooting | Restarts one service without recreating it — `hermes` to pick up a `.env` change ([`../shared/telegram-setup.md`](../shared/telegram-setup.md)'s "Apply the credentials"), `llama-swap` to clear a stuck generation ([`../shared/hardware-sizing.md`](../shared/hardware-sizing.md)'s 2026-09-10 incident) |
-| `docker compose pull [service]` | `update-remote.sh`, Common operations | Downloads the latest image for a service without starting it — the actual "update" step; `ghcr.io/ka8t/hermes:latest` is rebuilt automatically by `.github/workflows/publish-image.yml` on every `docker/**`/`skills/**` push to `main`, so this is what picks that up here |
+| `docker compose restart <service>` | manual, troubleshooting | Restarts one service without recreating it — `hermes` to pick up a `.env` change ([`../shared/telegram-setup.md`](../shared/telegram-setup.md)'s "Apply the credentials"), `llama-server` to clear a stuck generation ([`../shared/hardware-sizing.md`](../shared/hardware-sizing.md)'s 2026-09-10 incident) |
+| `docker compose pull [service]` | Common operations | Downloads the latest image for `hermes` without starting it — the actual "update" step; `ghcr.io/ka8t/hermes:latest` is rebuilt automatically by `.github/workflows/publish-image.yml` on every `docker/**`/`skills/**` push to `main`, so this is what picks that up here. `llama-server` isn't an image pull — see `--update-llama-server` below |
+| `docker compose up -d --build [service]` | `provision.sh`, `update-remote.sh --update-llama-server`, manual | Rebuilds (if the Dockerfile or bind-mounted binary changed) and recreates a service — how `llama-server` picks up a freshly-downloaded binary, since it isn't a registry image |
 | `docker compose down [-v]` | Common operations (stop the stack), `test/smoke-vps.sh` (`-v`, teardown) | Stops and removes containers — data persists in `./data`/`./models` unless `-v` is also passed, which additionally removes volumes (CI-only in this repo; destructive on a real deployment, don't add it here) |
-| `docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .` | Repo root (not this directory) — CI (`.github/workflows/publish-image.yml`) or a manual local build | Builds this repo's own patched image (`docker/patch-web-search-schema.py`, `docker/patch-gateway-setup-allowed-channels.py`, `docker/patch-clarify-questions-array.py`, the `SOUL.md` appends — see `docker/Dockerfile`'s own comments). This VPS only ever **pulls** the published result (`docker compose pull`) — it never builds the image itself |
+| `docker build -f docker/Dockerfile -t ghcr.io/ka8t/hermes:latest .` | Repo root (not this directory) — CI (`.github/workflows/publish-image.yml`) or a manual local build | Builds this repo's own patched image (`docker/patch-web-search-schema.py`, `docker/patch-gateway-setup-allowed-channels.py`, `docker/patch-clarify-questions-array.py`, the `SOUL.md` appends — see `docker/Dockerfile`'s own comments). This VPS only ever **pulls** the published result (`docker compose pull`) — it never builds this particular image itself |
 
 ## Managing models
 
-Edit `data/models.yaml` to add, change, or remove a model — the container is
-started with `-watch-config`, so both llama-swap and Hermes pick up the
-change without a restart. See
+To switch models: edit `MODEL_FILE`/`LLAMA_CTX_SIZE` in `.env` (and
+download the new `.gguf` into `./models`), then `docker compose up -d
+--build llama-server` to pick it up — this deployment always runs
+exactly one model at a time, no live swap. See
 [`../shared/managing-models.md`](../shared/managing-models.md).
 
 ## Scripts reference
@@ -345,7 +344,7 @@ ones.
 post-provisioning check (issue #27): measures *real* prompt-processing
 and generation throughput against this exact running deployment (CPU or
 GPU, whatever's actually configured), instead of only detecting
-hardware specs. Requires `docker compose up -d`'s llama-swap to be
+hardware specs. Requires `docker compose up -d`'s llama-server to be
 healthy; if the `hermes` container is also up, additionally estimates a
 real first-reply latency from `hermes prompt-size`'s actual prompt
 budget for this deployment (PASS under 5 min, WARN 5-20 min, FAIL
@@ -377,11 +376,20 @@ in normal use.
 
 **`scripts/stuck-generation-watchdog.sh`** — no required parameters
 (optional env vars: `STUCK_THRESHOLD_S`, default `1800`;
-`LLAMA_SWAP_CONTAINER`, default `llama-swap`). See "Stuck-generation
+`LLAMA_SERVER_CONTAINER`, default `llama-server`). See "Stuck-generation
 watchdog" above for what it does and why it deliberately doesn't restart
 anything.
 
-**`scripts/update-remote.sh <ssh-host-alias> [--restart-llama-swap]`** —
+**`scripts/download-prebuilt-llama-server.sh`** — no parameters.
+Downloads the latest official `bin-ubuntu-x64.tar.gz` release asset
+from `ggml-org/llama.cpp` (CPU-only) into
+`./vendor/llama.cpp-prebuilt/current/` and prints the resulting
+`llama-server` binary's path on stdout. `docker-compose.yml` bind-mounts
+that directory into the `llama-server` container — `provision.sh` calls
+this for you; run it again (then `docker compose up -d --build
+llama-server`) to pick up a newer upstream release.
+
+**`scripts/update-remote.sh <ssh-host-alias> [--update-llama-server]`** —
 run from **your own local machine**, not the VPS (the one script in this
 directory that isn't) — see [issue #87](https://github.com/ka8t/Hermes/issues/87).
 Takes an SSH target (a `Host` alias from your own `~/.ssh/config`, or a
@@ -389,16 +397,19 @@ bare `user@host`) as its first argument; this repo deliberately doesn't
 store or manage SSH connection details itself, see the script's own header
 comment. Pulls this repo's latest commits and the latest
 `ghcr.io/ka8t/hermes` image on the VPS, recreates the `hermes` container,
-and waits for it to report `Up`. Does **not** touch `llama-swap` or reload
-the model by default (a restart there can interrupt an in-flight
+and waits for it to report `Up`. Does **not** touch `llama-server` or
+reload the model by default (a restart there can interrupt an in-flight
 generation — see `shared/hardware-sizing.md`'s 2026-09-10 incident) —
-pass `--restart-llama-swap` if `config/models.yaml` also changed.
+pass `--update-llama-server` to also fetch the latest binary and
+recreate that container (issue #101: do this periodically, since
+`llama-server` has its own upstream release cadence nothing else here
+tracks).
 
 ## Troubleshooting
 
 | Symptom | What to check |
 |---|---|
-| `hermes` stays `starting` | `llama-swap` hasn't finished loading the model yet — check `docker compose logs llama-swap` |
+| `hermes` stays `starting` | `llama-server` hasn't finished loading the model yet — check `docker compose logs llama-server` |
 | Tool calls come back as raw JSON text instead of running | The `--jinja` flag is missing from that model's `cmd` in `data/models.yaml` (present in `models.yaml.example`) |
 | Hermes says a model isn't found | `model.default` in `data/config.yaml` doesn't match a model ID in `data/models.yaml` exactly — see [`../shared/managing-models.md`](../shared/managing-models.md) |
 | Slow / truncated responses | `LLAMA_CTX_SIZE` or `LLAMA_THREADS` poorly sized for the rented VPS — adjust in `.env`. `provision.sh` auto-detects vCPU count on first run and sets `LLAMA_THREADS` accordingly (total minus 1), but if `.env` predates that, or you resized the VPS after provisioning, check `nproc` yourself — see [`../shared/hardware-sizing.md`](../shared/hardware-sizing.md) for the full incident this fix came from and what to check before assuming a slow response is hardware-bound |
@@ -409,7 +420,6 @@ pass `--restart-llama-swap` if `config/models.yaml` also changed.
 
 - Prebuilt binaries (what's inside, how they're fetched): [`../shared/prebuilt-binaries.md`](../shared/prebuilt-binaries.md)
 - Managing multiple models: [`../shared/managing-models.md`](../shared/managing-models.md)
-- llama-swap: [mostlygeek/llama-swap](https://github.com/mostlygeek/llama-swap)
 - llama.cpp flags: [ggml-org/llama.cpp — docs/docker.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md)
 - Hermes image and volumes: [hermes-agent.nousresearch.com/docs/user-guide/docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
 - `custom` provider / `config.yaml`: [hermes-agent.nousresearch.com/docs/integrations/providers](https://hermes-agent.nousresearch.com/docs/integrations/providers)

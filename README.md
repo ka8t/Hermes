@@ -14,7 +14,7 @@ detail behind each line.
 
 **Live and tested**
 - Real Telegram bot, end-to-end, on your own hardware — no cloud API key, nothing leaves your machine
-- Local inference via [llama.cpp](https://github.com/ggml-org/llama.cpp) + [llama-swap](https://github.com/mostlygeek/llama-swap) — hot-swap models, Metal (Mac) or CPU (VPS)
+- Local inference via [llama.cpp](https://github.com/ggml-org/llama.cpp) directly — Metal (Mac) or CPU (VPS)
 - Docker **or** fully-native path on macOS; Docker-only on the VPS
 - Guided agent creation — describe an agent in plain language, get a working profile back
 - Enterprise-safe default — every destructive action needs an explicit human yes
@@ -40,8 +40,7 @@ detail behind each line.
   running a real local model on your own machine or a rented server.
 - **A base for learning how the pieces fit together.** Agent orchestration
   ([Hermes Agent](https://github.com/NousResearch/hermes-agent)), local
-  model serving ([llama.cpp](https://github.com/ggml-org/llama.cpp) +
-  [llama-swap](https://github.com/mostlygeek/llama-swap)), and — as
+  model serving ([llama.cpp](https://github.com/ggml-org/llama.cpp)), and — as
   specced work in this repo progresses — retrieval-augmented generation
   ([RAG](docs/GLOSSARY.md#rag)), model evaluation, and multi-channel routing. Every design
   decision in this repo is written down with its reasoning (see
@@ -66,14 +65,11 @@ detail behind each line.
 ## How it's built
 
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous
-Research's open-source, self-hosted AI agent) is wired to **local**
-[LLMs](docs/GLOSSARY.md#llm)
-served by [llama.cpp](https://github.com/ggml-org/llama.cpp) — no external
-API key, no data sent to a third-party service, everything runs on hardware
-you own or rent. [llama-swap](https://github.com/mostlygeek/llama-swap) sits
-between them so you can list more than one model and switch between them
-from inside Hermes, rather than being locked to whatever was configured at
-install time.
+Research's open-source, self-hosted AI agent) is wired directly to a
+**local** [LLM](docs/GLOSSARY.md#llm) served by
+[llama.cpp](https://github.com/ggml-org/llama.cpp) — no external API
+key, no data sent to a third-party service, everything runs on hardware
+you own or rent, no proxy in between.
 
 Two complete configurations, independent from each other:
 
@@ -123,8 +119,10 @@ Slack, email...); Telegram was chosen for this project because it's the
 fastest to set up (one bot token from BotFather, one allow-list of user
 IDs).
 
-**llama.cpp (via llama-swap in front of it)** is the local brain. It's the
-engine that actually runs the language model (loads the [GGUF](docs/GLOSSARY.md#gguf) weights,
+**llama.cpp** is the local brain — Hermes talks to it directly, no proxy
+in between (this deployment always runs exactly one model, never
+swapped at runtime, see `docs/ARCHITECTURE.md`). It's the engine that
+actually runs the language model (loads the [GGUF](docs/GLOSSARY.md#gguf) weights,
 generates tokens) and exposes it over an OpenAI-compatible [HTTP](docs/GLOSSARY.md#http--https) API. Hermes
 Agent sends it a request every time it needs to "think" — to reply, to
 decide whether to use a tool, or to follow a skill.
@@ -136,8 +134,7 @@ Phone (Telegram)
   → Telegram Bot API
     → Hermes Agent's Telegram gateway
       → Hermes's agent loop (assembles system prompt + skills + tools + history)
-        → HTTP request to llama-swap
-          → llama-server (llama.cpp) generates the reply
+        → HTTP request to llama-server (llama.cpp), generates the reply
         ← reply (plain text, or a structured tool call)
       ← Hermes runs the tool if needed, updates its memory
     ← Telegram gateway sends the final reply
@@ -149,7 +146,7 @@ Phone (Telegram)
 
 Docker Desktop for Mac cannot expose the Metal [GPU](docs/GLOSSARY.md#gpu--gpu-layers--offload) to a container — running
 `llama-server` inside it would fall back to CPU-only inference. On a Mac,
-llama-swap and the `llama-server` it spawns therefore always run natively
+`llama-server` therefore always runs natively
 (full Metal access), while Hermes itself can go either way (Docker by
 default; native is documented too, see `macos-arm64/README.md`). On a
 regular Linux VPS (no dedicated GPU), that distinction doesn't apply —
@@ -194,9 +191,9 @@ cd linux-x86_64-vps && cat README.md
 
 ```
 Hermes/
-├── macos-arm64/          # native llama-swap + llama.cpp (Metal); Hermes in Docker or native
+├── macos-arm64/          # native llama.cpp (Metal); Hermes in Docker or native
 │   └── scripts/            # download/run scripts for both llama.cpp and native Hermes
-├── linux-x86_64-vps/     # llama-swap, llama.cpp and Hermes, all via Docker Compose
+├── linux-x86_64-vps/     # llama.cpp and Hermes, both via Docker Compose
 │   └── scripts/            # download/run scripts
 ├── docker/               # ghcr.io/ka8t/hermes — Hermes + bundled skills + safe defaults
 ├── skills/agent-creation/  # the guided agent-creation skills + starter templates
@@ -212,7 +209,7 @@ Hermes/
 - [`shared/single-env-file.md`](shared/single-env-file.md) — why there's exactly one `.env` per platform, not a separate copy under `data/`/`~/.hermes`
 - [`shared/web-dashboard.md`](shared/web-dashboard.md) — what the built-in web UI offers (chat, sessions, cron, logs...) and how its credentials work
 - [`shared/model-notes.md`](shared/model-notes.md) — GGUF model choice, context constraints
-- [`shared/managing-models.md`](shared/managing-models.md) — add / switch / remove models via llama-swap
+- [`shared/managing-models.md`](shared/managing-models.md) — how to change which model this deployment runs
 - [`shared/prebuilt-binaries.md`](shared/prebuilt-binaries.md) — official binaries used, per platform
 - [`shared/enterprise-safety.md`](shared/enterprise-safety.md) — the approvals default, and what it doesn't cover
 - [`shared/multi-user-agents.md`](shared/multi-user-agents.md) — one Hermes profile per user, onboarding, current platform coverage
@@ -238,4 +235,3 @@ before anything risky — see each platform's "Common operations".
 - Hermes Agent — official repository: https://github.com/NousResearch/hermes-agent
 - Official documentation: https://hermes-agent.nousresearch.com/docs/
 - llama.cpp — official repository: https://github.com/ggml-org/llama.cpp
-- llama-swap — official repository: https://github.com/mostlygeek/llama-swap

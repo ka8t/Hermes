@@ -1,12 +1,13 @@
 # Copy this to ./data/config.yaml BEFORE the first `docker compose up`
 # (./data is the volume mounted at /opt/data in the hermes container — see README.md)
 #
-# llama-swap (and the llama-server it spawns) run NATIVELY on the Mac (not in
-# Docker, to keep Metal acceleration): the hermes container therefore reaches
-# it via host.docker.internal, automatically resolved by Docker Desktop for
-# Mac to the host machine — no IP address to know. "llama-3.1-8b-instruct" must
-# match a key under models: in data/models.yaml exactly (see
-# ../../shared/managing-models.md).
+# llama-server runs NATIVELY on the Mac (not in Docker, to keep Metal
+# acceleration): the hermes container therefore reaches it via
+# host.docker.internal, automatically resolved by Docker Desktop for Mac
+# to the host machine — no IP address to know. This deployment always
+# runs exactly one model, so "default" below doesn't select between
+# anything — llama-server ignores the "model" field entirely and just
+# serves whatever it was started with (see ../.env's MODEL_FILE).
 
 model:
   default: llama-3.1-8b-instruct

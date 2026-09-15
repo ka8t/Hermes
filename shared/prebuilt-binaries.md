@@ -1,4 +1,4 @@
-# Using official prebuilt binaries (llama.cpp and llama-swap)
+# Using official prebuilt binaries (llama.cpp)
 
 See also: [Glossary](../docs/GLOSSARY.md) for acronyms/technical terms used below.
 
@@ -41,16 +41,20 @@ curl -fsSL "https://api.github.com/repos/ggml-org/llama.cpp/releases" \
   | sed -E 's/.*"(https[^"]+)"/\1/'
 ```
 
-**This script only exists on the macOS side.** On the Linux VPS, `llama-server`
-arrives already bundled inside the `ghcr.io/mostlygeek/llama-swap:cpu` image
-(see below) — nothing to fetch separately there.
+The VPS has the equivalent
+`linux-x86_64-vps/scripts/download-prebuilt-llama-server.sh` (same
+approach, targets `bin-ubuntu-x64.tar.gz`), fetching the binary into
+`./vendor/llama.cpp-prebuilt` where `docker-compose.yml` bind-mounts it
+into the `llama-server` container — see `docs/ARCHITECTURE.md`,
+2026-09-15 (before that, the VPS got `llama-server` bundled inside the
+`ghcr.io/mostlygeek/llama-swap:cpu` image instead; issue #101 covers why
+that changed).
 
 ### What's actually inside (verified)
 
 - **`bin-macos-arm64.tar.gz`** ships `libggml-metal.dylib` — **Metal
   acceleration is built in**, no separate GPU build needed on Apple Silicon.
-- **`bin-ubuntu-x64.tar.gz`** (and the copy bundled in the `llama-swap:cpu`
-  image, confirmed identical layout) ships one `libggml-cpu-<microarch>.so`
+- **`bin-ubuntu-x64.tar.gz`** ships one `libggml-cpu-<microarch>.so`
   per CPU generation (`haswell`, `skylakex`, `icelake`, `sapphirerapids`,
   `zen4`, ...) — `llama-server` picks the best one for the actual CPU at
   startup, so there's no need to compile with `-march=native` yourself. This
@@ -68,41 +72,21 @@ arrives already bundled inside the `ghcr.io/mostlygeek/llama-swap:cpu` image
   Finder, clear it with `xattr -dr com.apple.quarantine <folder>` before
   running the binary.
 
-## llama-swap
-
-Both configurations put [llama-swap](https://github.com/mostlygeek/llama-swap)
-in front of `llama-server` to support more than one model — see
-[`managing-models.md`](managing-models.md) for why and how. Unlike
-llama.cpp, llama-swap ships normal, stable semver releases (`v252`, ...), so
-"grab the latest" is a plain GitHub "latest release" lookup, no rolling-tag
-workaround needed:
-
-- macOS: `macos-arm64/scripts/download-llama-swap.sh` fetches
-  `llama-swap_<ver>_darwin_arm64.tar.gz` — confirmed to exist for every
-  release (also `darwin_amd64`, `linux_amd64`, `linux_arm64`, `freebsd_amd64`,
-  `windows_amd64`).
-- VPS: no separate download — `ghcr.io/mostlygeek/llama-swap:cpu` (the
-  "legacy" image, chosen over the CUDA/Vulkan "unified" images since the
-  target VPS has no GPU) bundles both `llama-swap` and `llama-server` at
-  `/app/llama-swap` and `/app/llama-server` (confirmed by inspecting the
-  image), so `docker-compose.yml` just runs it directly.
-
 ## Trust considerations (reviewed, not overlooked)
 
-Every binary this repo runs — `llama-server`, `llama-swap`, the
-`nousresearch/hermes-agent` and `ghcr.io/mostlygeek/llama-swap` images — is
-built by each project's own CI, not signed with a personal or organizational
-GPG key, and not notarized (on macOS). Using them means trusting those
-projects' build pipelines with full access to the machine they run on. This
-was weighed explicitly (not an oversight): the alternative, building
-everything from source, doesn't remove the trust dependency on the
-*source code* itself, only on the *binary supply chain* on top of it, and
-this repo's default posture accepts that remaining risk for the convenience
-of not maintaining a compiler toolchain. Anyone who wants the stricter
-posture can still build llama.cpp from source — see
-`find-or-build-llama-server.sh`'s from-source fallback
-(`LLAMA_BUILD_FROM_SOURCE=1`) — or build llama-swap themselves from its
-repository.
+Every binary this repo runs — `llama-server` and the
+`nousresearch/hermes-agent`-derived `ghcr.io/ka8t/hermes` image — is
+built by each project's own CI, not signed with a personal or
+organizational GPG key, and not notarized (on macOS). Using them means
+trusting those projects' build pipelines with full access to the
+machine they run on. This was weighed explicitly (not an oversight):
+the alternative, building everything from source, doesn't remove the
+trust dependency on the *source code* itself, only on the *binary
+supply chain* on top of it, and this repo's default posture accepts
+that remaining risk for the convenience of not maintaining a compiler
+toolchain. Anyone who wants the stricter posture can still build
+llama.cpp from source — see `find-or-build-llama-server.sh`'s
+from-source fallback (`LLAMA_BUILD_FROM_SOURCE=1`).
 
 ## Trade-off vs. building from source
 

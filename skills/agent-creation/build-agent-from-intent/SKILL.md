@@ -44,12 +44,14 @@ skill only executes a spec that is already complete.
    than a blank profile.
 
 3. **Model**: if the spec's `Model:` line names something other than the
-   deployment default, check whether that model ID already exists among
-   the models this deployment can actually serve. If the deployment is one
-   of the ka8t/Hermes reference configurations, that list lives in a
-   `models.yaml` managed via llama-swap — add a new entry there rather than
-   inventing a model ID nothing serves. If unsure what's available or how
-   models are managed on this particular host, ask rather than guess.
+   deployment default, check whether it's actually available. If the
+   deployment is one of the ka8t/Hermes reference configurations, it
+   always runs exactly one model at a time, directly via `llama-server`
+   (no on-the-fly switching) — changing it means editing `MODEL_FILE` in
+   `.env` and restarting `llama-server`, a deployment-level change, not
+   something to do mid-conversation for one profile. Don't invent a
+   model ID nothing serves. If unsure what's available or how models are
+   managed on this particular host, ask rather than guess.
 
 4. **Channel**: if the spec's `Channel:` line names a gateway, configure it
    for this profile (`hermes -p <name> gateway setup`, or the equivalent

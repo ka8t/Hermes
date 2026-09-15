@@ -54,8 +54,7 @@ shrink it. This repo's default model ships as a `.gguf` file.
 
 ## GHCR
 GitHub Container Registry — where this repo's own Docker image
-(`ghcr.io/ka8t/hermes`) and third-party images it uses (like llama-swap's)
-are hosted.
+(`ghcr.io/ka8t/hermes`) is hosted.
 
 ## GPU / GPU layers / offload
 Graphics Processing Unit — hardware that can run a model dramatically
@@ -68,7 +67,7 @@ this repo's configs means "offload everything possible." See
 
 ## HTTP / HTTPS
 HyperText Transfer Protocol (Secure) — the protocol web requests use.
-Every API call in this repo (to llama-swap, to Telegram, to BFCL) is an
+Every API call in this repo (to llama-server, to Telegram, to BFCL) is an
 HTTP request; HTTPS is the encrypted version, needed for anything
 exposed to the public internet (see `shared/cloudflare-tunnel-setup.md`).
 
@@ -178,12 +177,6 @@ arguments" in a structured way, instead of just replying with plain
 text — how Hermes Agent lets a model search the web, run a command, or
 check a calendar. BFCL specifically measures how reliably a model does
 this correctly.
-
-## TTL
-Time To Live — how long something is kept before being discarded.
-llama-swap's `ttl: 600` (in `models.yaml`) means a loaded model is
-unloaded after 600 seconds of inactivity, freeing memory for another
-model. See `shared/managing-models.md`.
 
 ## URL
 Uniform Resource Locator — a web address (e.g.

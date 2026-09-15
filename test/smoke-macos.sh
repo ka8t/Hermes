@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Integration smoke test for the macos-arm64 configuration's model serving
-# path: runs the real scripts/download-prebuilt-llama-server.sh,
-# scripts/download-llama-swap.sh and scripts/run-llama-swap.sh (not mocks),
-# with a tiny model swapped in for speed, and checks it actually serves a
-# completion via Metal.
+# path: runs the real scripts/download-prebuilt-llama-server.sh and
+# scripts/run-llama-server.sh (not mocks), with a tiny model swapped in
+# for speed, and checks it actually serves a completion via Metal.
 #
 # Local only — needs an actual Apple Silicon Mac (Metal), so this does not
 # run in CI (see test/smoke-vps.sh for the CI-friendly Linux/CPU equivalent
@@ -22,10 +21,10 @@ fi
 TEST_MODEL_REPO="Qwen/Qwen2.5-0.5B-Instruct-GGUF"
 TEST_MODEL_FILE="qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
-SWAP_PID=""
+SERVER_PID=""
 cleanup() {
   echo "==> Tearing down"
-  [ -n "${SWAP_PID}" ] && kill "${SWAP_PID}" 2>/dev/null || true
+  [ -n "${SERVER_PID}" ] && kill "${SERVER_PID}" 2>/dev/null || true
   rm -f .env
   rm -rf data
 }
@@ -44,11 +43,10 @@ sed -i '' "s#^LLAMA_SERVER_BIN=.*#LLAMA_SERVER_BIN=${LLAMA_SERVER_BIN}#" .env
 
 mkdir -p data
 cp config/config.yaml.example data/config.yaml
-cp config/models.yaml.example data/models.yaml
 
-echo "==> Starting llama-swap in the background"
-./scripts/run-llama-swap.sh >/tmp/hermes-smoke-macos.log 2>&1 &
-SWAP_PID=$!
+echo "==> Starting llama-server in the background (Metal)"
+./scripts/run-llama-server.sh >/tmp/hermes-smoke-macos.log 2>&1 &
+SERVER_PID=$!
 
 echo "==> Waiting for /health"
 ok=0
@@ -60,22 +58,28 @@ for _ in $(seq 1 20); do
   sleep 1
 done
 if [ "$ok" -ne 1 ]; then
-  echo "FAIL: llama-swap never answered /health"
+  echo "FAIL: llama-server never answered /health"
   cat /tmp/hermes-smoke-macos.log
   exit 1
 fi
-echo "ok   llama-swap is up"
+echo "ok   llama-server is up"
 
-echo "==> GET /v1/models should list the configured model"
+echo "==> GET /v1/models should list a real model"
 models_json="$(curl -sf http://127.0.0.1:8080/v1/models)"
-echo "$models_json" | grep -q '"qwen2.5-coder-7b"' \
-  && echo "ok   model ID present" \
-  || { echo "FAIL: model ID missing from $models_json"; exit 1; }
+# Read the real model ID rather than assuming one — llama-server reports
+# the loaded .gguf's own path/name here, not a fixed label (see
+# test/smoke-vps.sh's matching comment, issue #54).
+REAL_MODEL_ID="$(echo "$models_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])' 2>/dev/null)"
+if [ -z "${REAL_MODEL_ID}" ]; then
+  echo "FAIL: no model ID found in $models_json"
+  exit 1
+fi
+echo "ok   model ID present: ${REAL_MODEL_ID}"
 
-echo "==> POST /v1/chat/completions should get a real reply (spawns llama-server, Metal)"
+echo "==> POST /v1/chat/completions should get a real reply (Metal)"
 reply="$(curl -sf http://127.0.0.1:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"qwen2.5-coder-7b","messages":[{"role":"user","content":"Reply with exactly one word: OK"}],"max_tokens":10}')"
+  -d "{\"model\":\"${REAL_MODEL_ID}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":10}")"
 echo "$reply" | grep -q '"content"' \
   && echo "ok   got a completion: $reply" \
   || { echo "FAIL: no completion in $reply"; exit 1; }
