@@ -330,16 +330,23 @@ attempt) — this time with the *correct* skill name
 sync worked but also confirming this is genuinely the separate,
 already-documented #101 bug (the model fabricating a tool-call-shaped
 JSON blob in chat content, which the strict parser rejects), not
-something the #76 gate introduced or can fix. Given 5 consecutive
-full-chat-flow attempts on the VPS were pre-empted by this unrelated bug,
-end-to-end chat verification on the VPS was not obtained today. Instead,
+something the #76 gate introduced or can fix. After the v2 gate (directive
+message + broadened regex) was deployed to the VPS, a 6th full-chat-flow
+attempt was made — same result, `agent-profile-builder` fabricated again
+in peg-native-rejected JSON, this time carrying an `"intent": "créer un
+agent simple qui envoie des messages chaque jour"` parameter. Given 6
+consecutive full-chat-flow attempts on the VPS were all pre-empted by this
+unrelated bug before ever reaching `delegate_task`, end-to-end chat
+verification of the #76 gate on the VPS was not obtained today — this is
+an #101 availability problem, not evidence against the #76 fix. Instead,
 **verified the deployed gate directly**: executing
 `_normalize_task_list(None, None, [{"goal": "Crée un agent simple qui
 m'envoie un message tous les jours.", "context": ""}], None, "leaf", 3,
 0)` inside the running VPS container's own Python environment returns the
-expected refusal — confirming the patched code is present and functions
-correctly on the VPS, independent of whether a full conversation can
-reach it without tripping the unrelated #101 bug first.
+expected refusal (re-confirmed after the v2 redeploy, including the
+broadened `hermes profile` branch) — confirming the patched code is
+present and functions correctly on the VPS, independent of whether a full
+conversation can reach it without tripping the unrelated #101 bug first.
 
 **What this fixes vs. what it doesn't.** This closes the specific
 mechanism issue #76 is about — the mismatched/never-consulted skill
