@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Alert-only stopgap for issue #86: llama.cpp/llama-swap don't cancel a
+# Alert-only stopgap for issue #86: llama.cpp doesn't cancel a
 # generation when hermes's own client disconnects (see
 # shared/hardware-sizing.md's 2026-09-10 incident, and #82's writeup on
 # the same finding). #82's `--predict 4096` cap bounds how long any single
@@ -16,7 +16,7 @@
 # decision, see #86): a long-running request might still be a
 # legitimately slow one this script can't reliably tell apart from a real
 # hang, so a human decides whether to run `docker compose restart
-# llama-swap`.
+# llama-server`.
 #
 # Run periodically (every few minutes), not as a long-running daemon —
 # see stuck-generation-watchdog.timer.example for the systemd wiring.
@@ -30,7 +30,7 @@ cd "${PLATFORM_DIR}"
 # silent-failure-watchdog.sh's own comment on this same fix.
 : "${HOME:=$(eval echo "~$(id -un)")}"
 
-LLAMA_SWAP_CONTAINER="${LLAMA_SWAP_CONTAINER:-llama-swap}"
+LLAMA_SERVER_CONTAINER="${LLAMA_SERVER_CONTAINER:-llama-server}"
 
 # Generous upper bound on how long a single completion should ever
 # legitimately take on this deployment: worst documented prefill (~13 min
@@ -48,13 +48,13 @@ NOTIFIED_FILE="$HOME/.hermes/stuck-generation-watchdog.notified-pids"
 mkdir -p "$(dirname "${NOTIFIED_FILE}")"
 touch "${NOTIFIED_FILE}"
 
-if ! docker exec "${LLAMA_SWAP_CONTAINER}" true 2>/dev/null; then
-  echo "Docker container '${LLAMA_SWAP_CONTAINER}' not reachable — nothing to check." >&2
+if ! docker exec "${LLAMA_SERVER_CONTAINER}" true 2>/dev/null; then
+  echo "Docker container '${LLAMA_SERVER_CONTAINER}' not reachable — nothing to check." >&2
   exit 0
 fi
 
 # One line per llama-server process: "<pid> <etimes>"
-PROCS="$(docker exec "${LLAMA_SWAP_CONTAINER}" ps -o pid,etimes --no-headers -C llama-server 2>/dev/null || true)"
+PROCS="$(docker exec "${LLAMA_SERVER_CONTAINER}" ps -o pid,etimes --no-headers -C llama-server 2>/dev/null || true)"
 
 # No model currently loaded — nothing to check, not an error.
 [ -z "${PROCS}" ] && exit 0
@@ -70,7 +70,7 @@ echo "${PROCS}" | while read -r pid etimes; do
   # (possibly with a NEW request that just started right as an old one
   # ended), not necessarily stuck — only alert when nothing has finished
   # in the whole threshold window.
-  RECENT_COMPLETIONS="$(docker compose logs "${LLAMA_SWAP_CONTAINER}" \
+  RECENT_COMPLETIONS="$(docker compose logs "${LLAMA_SERVER_CONTAINER}" \
     --since "${STUCK_THRESHOLD_S}s" 2>/dev/null | grep -c 'POST /v1/chat/completions' || true)"
   [ "${RECENT_COMPLETIONS:-0}" -gt 0 ] && continue
 
@@ -87,7 +87,7 @@ echo "${PROCS}" | while read -r pid etimes; do
     continue
   fi
 
-  ALERT_TEXT="Hermes' local model (llama-server pid ${pid}) has been running continuously for ~${MINUTES} min with no completed reply -- this may be a stuck generation (see ka8t/Hermes issue #86). Not restarted automatically. Check with: docker compose exec llama-swap ps aux -- if genuinely stuck: docker compose restart llama-swap"
+  ALERT_TEXT="Hermes' local model (llama-server pid ${pid}) has been running continuously for ~${MINUTES} min with no completed reply -- this may be a stuck generation (see ka8t/Hermes issue #86). Not restarted automatically. Check with: docker compose exec llama-server ps aux -- if genuinely stuck: docker compose restart llama-server"
 
   if curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     -d "chat_id=${TELEGRAM_HOME_CHANNEL}" \

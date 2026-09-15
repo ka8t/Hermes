@@ -1,17 +1,18 @@
 # Copy this to ./data/config.yaml BEFORE the first `docker compose up`
 # (./data is the volume mounted at /opt/data in the hermes container — see README.md)
 #
-# "llama-swap" is the name of the neighboring service in docker-compose.yml;
-# Docker Compose's internal network resolves it automatically, no IP or
-# host.docker.internal needed here (unlike the macOS version). llama-swap
-# routes to whichever model ID is requested — "llama-3.1-8b-instruct" must match
-# a key under models: in data/models.yaml exactly (see
-# ../../shared/managing-models.md).
+# "llama-server" is the name of the neighboring service in
+# docker-compose.yml; Docker Compose's internal network resolves it
+# automatically, no IP or host.docker.internal needed here (unlike the
+# macOS version). This deployment always runs exactly one model, so
+# "default" below doesn't select between anything — llama-server ignores
+# the "model" field entirely and just serves whatever it was started
+# with (see ../.env's MODEL_FILE).
 
 model:
   default: llama-3.1-8b-instruct
   provider: custom
-  base_url: http://llama-swap:8080/v1
+  base_url: http://llama-server:8080/v1
   context_length: 65536
 
 # Hermes auto-detects a local endpoint and raises its stream-stale-timeout

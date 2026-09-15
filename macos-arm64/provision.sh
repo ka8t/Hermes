@@ -61,11 +61,6 @@ if [ ! -f data/config.yaml ]; then
   cp config/config.yaml.example data/config.yaml
   echo "==> data/config.yaml initialized from config/config.yaml.example"
 fi
-if [ ! -f data/models.yaml ]; then
-  cp config/models.yaml.example data/models.yaml
-  echo "==> data/models.yaml initialized from config/models.yaml.example"
-fi
-
 CURRENT_LLAMA_SERVER_BIN="$(grep -E '^LLAMA_SERVER_BIN=' .env | cut -d= -f2-)"
 
 # -x alone (permission bits) doesn't catch macOS's "Optimize Mac Storage"
@@ -118,25 +113,25 @@ echo "    anyone else on your network."
 
 LLAMA_PORT="$(grep -E '^LLAMA_PORT=' .env | cut -d= -f2-)"
 LLAMA_PORT="${LLAMA_PORT:-8080}"
-LLAMA_PID_FILE="$(pwd)/.llama-swap.pid"
+LLAMA_PID_FILE="$(pwd)/.llama-server.pid"
 if curl -sf "http://127.0.0.1:${LLAMA_PORT}/health" >/dev/null 2>&1; then
   echo ""
-  echo "==> llama-swap already running on port ${LLAMA_PORT} (started some other"
+  echo "==> llama-server already running on port ${LLAMA_PORT} (started some other"
   echo "    way — a prior run of this script, launchd, or manually) — skipping."
 else
   echo ""
-  echo "==> Starting llama-swap + llama-server in the background (logs:"
-  echo "    macos-arm64/llama-swap.log). This is a plain background process, not"
+  echo "==> Starting llama-server in the background (logs:"
+  echo "    macos-arm64/llama-server.log). This is a plain background process, not"
   echo "    a persistent service — it stops when you log out. See README.md,"
-  echo "    \"Running llama-swap in the background\", to install it as a launchd"
+  echo "    \"Running llama-server in the background\", to install it as a launchd"
   echo "    service instead (needs a one-time Full Disk Access grant if this repo"
   echo "    lives under ~/Documents — see that section for why)."
-  nohup ./scripts/run-llama-swap.sh > llama-swap.log 2>&1 &
+  nohup ./scripts/run-llama-server.sh > llama-server.log 2>&1 &
   echo $! > "${LLAMA_PID_FILE}"
-  echo "==> Waiting for llama-swap to respond..."
+  echo "==> Waiting for llama-server to respond..."
   for _ in $(seq 1 30); do
     if curl -sf "http://127.0.0.1:${LLAMA_PORT}/health" >/dev/null 2>&1; then
-      echo "==> llama-swap is up."
+      echo "==> llama-server is up."
       break
     fi
     sleep 2

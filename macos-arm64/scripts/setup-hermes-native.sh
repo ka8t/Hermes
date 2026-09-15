@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seeds a native Hermes install (see install-hermes-native.sh) with this
-# repo's config: point it at the native llama-swap endpoint, apply the
+# repo's config: point it at the native llama-server endpoint, apply the
 # enterprise-safe approvals default, and sync the bundled agent-creation
 # skills — the same three things the Docker image
 # (ghcr.io/ka8t/hermes, see ../../docker/) bakes in.
@@ -21,9 +21,10 @@ mkdir -p "${HERMES_HOME}"
 
 if [ ! -f "${HERMES_HOME}/config.yaml" ]; then
   cat > "${HERMES_HOME}/config.yaml" <<'YAML'
-# Native install — llama-swap runs on this same machine, so it's reached
-# over plain localhost, no host.docker.internal needed (that's only a
-# Docker-networking workaround, irrelevant once Hermes itself is native).
+# Native install — llama-server runs on this same machine, so it's
+# reached over plain localhost, no host.docker.internal needed (that's
+# only a Docker-networking workaround, irrelevant once Hermes itself is
+# native).
 model:
   default: llama-3.1-8b-instruct
   provider: custom
@@ -78,10 +79,8 @@ mkdir -p "${HERMES_HOME}/skills/ka8t-hermes"
 cp -R ../skills/agent-creation "${HERMES_HOME}/skills/ka8t-hermes/agent-creation"
 
 echo ""
-echo "Done. Next (if you haven't already set up ./data/models.yaml — same file"
-echo "the Docker path uses, see README.md):"
+echo "Done. Next (if you haven't already):"
 echo "  1. ./scripts/download-model.sh"
-echo "  2. mkdir -p data && cp config/models.yaml.example data/models.yaml"
-echo "  3. ./scripts/run-llama-swap.sh                      # keep running — the model"
-echo "  4. hermes gateway install && hermes gateway start   # Hermes as a launchd service"
-echo "  5. hermes gateway setup                             # once, to wire up Telegram"
+echo "  2. ./scripts/run-llama-server.sh                    # keep running — the model"
+echo "  3. hermes gateway install && hermes gateway start   # Hermes as a launchd service"
+echo "  4. hermes gateway setup                             # once, to wire up Telegram"

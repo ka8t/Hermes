@@ -1,23 +1,53 @@
 services:
-  llama-swap:
-    # Legacy image (llama.cpp's own container + llama-swap copied in): bundles
-    # /app/llama-server and /app/llama-swap, CPU-only — no GPU on this VPS.
-    # See ../shared/prebuilt-binaries.md for what's confirmed inside it.
-    image: ghcr.io/mostlygeek/llama-swap:cpu
-    container_name: llama-swap
+  llama-server:
+    # Runs the official prebuilt llama-server binary directly (see
+    # ./scripts/download-prebuilt-llama-server.sh, bind-mounted below) —
+    # no llama-swap in front of it. This deployment always runs exactly
+    # one model, never swaps at runtime, so llama-swap's routing/
+    # multi-model layer bought nothing here and its separate,
+    # untracked update lifecycle caused a real incident (issue #101,
+    # 2026-09-15: the VPS silently ran a two-week-stale llama-server).
+    # See docs/ARCHITECTURE.md.
+    build:
+      context: .
+      dockerfile: docker/llama-server.Dockerfile
+    container_name: llama-server
     restart: unless-stopped
     volumes:
       - ./models:/models:ro
-      - ./data/models.yaml:/app/config.yaml:ro
+      - ./vendor/llama.cpp-prebuilt/current:/vendor:ro
     env_file:
       - .env
     ports:
       - "127.0.0.1:8080:8080"
+    # Flags match what config/models.yaml.example used to pass through
+    # llama-swap — see shared/model-notes.md for why each one is here
+    # (KV-cache quantization issue #52, --predict cap issue #82,
+    # --repeat-penalty issue #101).
+    command:
+      - /vendor/llama-server
+      - --port
+      - "8080"
+      - --host
+      - "0.0.0.0"
+      - --model
+      - /models/${MODEL_FILE}
+      - --ctx-size
+      - ${LLAMA_CTX_SIZE}
+      - --threads
+      - ${LLAMA_THREADS}
+      - --jinja
+      - --flash-attn
+      - "on"
+      - -ctk
+      - q8_0
+      - -ctv
+      - q8_0
+      - --predict
+      - "4096"
+      - --repeat-penalty
+      - "1.1"
     healthcheck:
-      # curl, not wget: this image (ghcr.io/mostlygeek/llama-swap:cpu, based
-      # on Ubuntu 24.04) has curl but not wget — confirmed by inspecting it;
-      # wget silently fails every check forever, so hermes's
-      # depends_on/service_healthy below would never unblock.
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
@@ -29,7 +59,7 @@ services:
     container_name: hermes
     restart: unless-stopped
     depends_on:
-      llama-swap:
+      llama-server:
         condition: service_healthy
     command: gateway run
     env_file:

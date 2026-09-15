@@ -4,7 +4,7 @@
 # detecting hardware specs (vCPU count, GPU presence — see #12/#13).
 #
 # Run this once `docker compose up -d` is up and `docker compose logs -f
-# llama-swap` reports healthy — provisioning is not "done" until this
+# llama-server` reports healthy — provisioning is not "done" until this
 # passes. See ../../shared/hardware-sizing.md for why spec detection alone
 # isn't enough and for the exact thresholds/calibration used below.
 set -euo pipefail
@@ -14,14 +14,14 @@ cd "$REPO_DIR"
 
 LLAMA_URL="${LLAMA_URL:-http://127.0.0.1:8080}"
 
-echo "==> Checking llama-swap is reachable at ${LLAMA_URL}"
+echo "==> Checking llama-server is reachable at ${LLAMA_URL}"
 if ! curl -sf "${LLAMA_URL}/health" >/dev/null; then
   echo "!! ${LLAMA_URL}/health not reachable. Is 'docker compose up -d' running and healthy?" >&2
   exit 1
 fi
 
-# The model ID comes from llama-swap itself (/v1/models) — this only
-# requires llama-swap to be up, not the hermes container. Bug found
+# The model ID comes from llama-server itself (/v1/models) — this only
+# requires llama-server to be up, not the hermes container. Bug found
 # live-testing the macOS variant of this script on 2026-09-03: requiring
 # Hermes just to read the model ID coupled the whole throughput benchmark
 # (which needs nothing from Hermes) to Hermes being up first — unnecessary.
@@ -84,8 +84,8 @@ else
 fi
 
 if awk -v v="${DISK_AVAIL_GB}" 'BEGIN{exit !(v<10)}'; then
-  echo "    FAIL: below ~10GB — the default model alone is ~4.6GB, the Hermes"
-  echo "          image ~3.9GB, and llama-swap:cpu ~1.2GB; you'll run out mid-setup."
+  echo "    FAIL: below ~10GB — the default model alone is ~4.6GB, and the"
+  echo "          Hermes image ~3.9GB; you'll run out mid-setup."
   RAM_OK=0
 elif awk -v v="${DISK_AVAIL_GB}" 'BEGIN{exit !(v<20)}'; then
   echo "    WARN: usable, but little room for a second model or Docker"

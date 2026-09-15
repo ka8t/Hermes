@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provisions a fresh Ubuntu 22.04+/x86-64 VPS for this stack
-# (llama-swap + llama.cpp + Hermes Agent, all three in Docker).
+# (llama-server + Hermes Agent, both in Docker).
 #
 # Run this once, as root, on the VPS:
 #   curl -fsSL https://raw.githubusercontent.com/ka8t/Hermes/main/linux-x86_64-vps/provision.sh | bash
@@ -93,11 +93,6 @@ if [ ! -f data/config.yaml ]; then
   echo "==> data/config.yaml initialized from config/config.yaml.example"
 fi
 
-if [ ! -f data/models.yaml ]; then
-  cp config/models.yaml.example data/models.yaml
-  echo "==> data/models.yaml initialized from config/models.yaml.example"
-fi
-
 # Single .env file (issue #73): make data/.env a symlink to .env.real (which
 # docker-compose.yml bind-mounts from this directory's own .env) BEFORE the
 # first container boot, so hermes-agent's own first-boot seed step never
@@ -149,11 +144,15 @@ else
 fi
 
 echo ""
+echo "==> Downloading llama-server (the actual model-running binary)."
+./scripts/download-prebuilt-llama-server.sh >/dev/null
+
+echo ""
 echo "Provisioning done. Remaining steps:"
 echo "  1. Edit .env (TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS, and"
 echo "     HERMES_DASHBOARD_BASIC_AUTH_USERNAME/_PASSWORD — see ../shared/telegram-setup.md)"
-echo "  2. docker compose up -d"
-echo "  3. docker compose logs -f llama-swap   # wait for it to report healthy"
+echo "  2. docker compose up -d --build"
+echo "  3. docker compose logs -f llama-server   # wait for it to report healthy"
 echo "  4. docker compose exec hermes hermes gateway setup   # once, for Telegram"
 
 # Everything below is interactive-only (issue #61, part of #59) — orchestrates
@@ -178,16 +177,16 @@ echo "    anyone who can reach the port."
 ./scripts/configure-env.sh
 
 echo ""
-echo "==> Starting Hermes and llama-swap."
-docker compose up -d
+echo "==> Starting Hermes and llama-server."
+docker compose up -d --build
 
 echo ""
-echo "==> Waiting for llama-swap to report healthy (loads the model into memory —"
+echo "==> Waiting for llama-server to report healthy (loads the model into memory —"
 echo "    can take a minute or two, but is NOT the slow part; that's the first reply)."
 for _ in $(seq 1 60); do
-  STATUS="$(docker compose ps --format '{{.Health}}' llama-swap 2>/dev/null || true)"
+  STATUS="$(docker compose ps --format '{{.Health}}' llama-server 2>/dev/null || true)"
   if [ "${STATUS}" = "healthy" ]; then
-    echo "==> llama-swap is healthy."
+    echo "==> llama-server is healthy."
     break
   fi
   sleep 5

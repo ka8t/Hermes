@@ -20,17 +20,23 @@
 #     IdentityFile ~/.ssh/id_ed25519
 # then: ./scripts/update-remote.sh my-hermes-vps
 #
-# Does NOT touch llama-swap or the model -- those rarely change and a
-# restart there interrupts any in-flight generation (see
-# shared/hardware-sizing.md's 2026-09-10 incident on why that's not
-# free). Re-run this script with --restart-llama-swap if you specifically
-# need to pick up a config/models.yaml change too.
+# Does NOT touch llama-server or the model by default -- a restart there
+# interrupts any in-flight generation (see shared/hardware-sizing.md's
+# 2026-09-10 incident on why that's not free). Pass
+# --update-llama-server to re-download the latest official llama-server
+# binary (see ./download-prebuilt-llama-server.sh) and recreate that
+# container too -- do this periodically even without a repo change,
+# since llama-server has its own upstream release cadence this repo
+# doesn't otherwise track (issue #101, 2026-09-15: a stale bundled
+# llama-swap:cpu image ran unnoticed for two weeks through a real
+# incident before this repo dropped llama-swap and started tracking the
+# binary directly).
 set -euo pipefail
 
-SSH_HOST="${1:?Usage: $0 <ssh-host-alias-or-user@host> [--restart-llama-swap]}"
-RESTART_LLAMA_SWAP=0
-if [ "${2:-}" = "--restart-llama-swap" ]; then
-  RESTART_LLAMA_SWAP=1
+SSH_HOST="${1:?Usage: $0 <ssh-host-alias-or-user@host> [--update-llama-server]}"
+UPDATE_LLAMA_SERVER=0
+if [ "${2:-}" = "--update-llama-server" ]; then
+  UPDATE_LLAMA_SERVER=1
 fi
 
 REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-hermes}"
@@ -54,9 +60,11 @@ ssh_run "cd ~/${REMOTE_REPO_DIR}/linux-x86_64-vps && docker compose pull hermes"
 echo "==> Recreating the hermes container"
 ssh_run "cd ~/${REMOTE_REPO_DIR}/linux-x86_64-vps && docker compose up -d hermes"
 
-if [ "${RESTART_LLAMA_SWAP}" -eq 1 ]; then
-  echo "==> --restart-llama-swap passed: restarting llama-swap too"
-  ssh_run "cd ~/${REMOTE_REPO_DIR}/linux-x86_64-vps && docker compose restart llama-swap"
+if [ "${UPDATE_LLAMA_SERVER}" -eq 1 ]; then
+  echo "==> --update-llama-server passed: downloading the latest llama-server binary"
+  ssh_run "cd ~/${REMOTE_REPO_DIR}/linux-x86_64-vps && ./scripts/download-prebuilt-llama-server.sh"
+  echo "==> Recreating llama-server to pick it up"
+  ssh_run "cd ~/${REMOTE_REPO_DIR}/linux-x86_64-vps && docker compose up -d --build llama-server"
 fi
 
 echo "==> Waiting for the hermes container to report Up..."
@@ -76,7 +84,7 @@ if [ "${UP}" -eq 0 ]; then
   exit 1
 fi
 
-echo "==> Update complete. This did not restart llama-swap or reload the model"
-echo "    (pass --restart-llama-swap if config/models.yaml also changed) --"
+echo "==> Update complete. This did not touch llama-server or the model"
+echo "    (pass --update-llama-server to fetch the latest binary too) --"
 echo "    for a deeper check of real inference throughput, run"
 echo "    ./scripts/verify-inference.sh on the VPS itself."

@@ -14,7 +14,7 @@ whether it describes something **live** (implemented and, where noted,
 verified against a real deployment) or **specced** (issues exist,
 nothing built yet).
 
-Last updated: 2026-09-03.
+Last updated: 2026-09-15.
 
 See also: [Glossary](GLOSSARY.md) for acronyms/technical terms used below.
 
@@ -46,15 +46,13 @@ graph LR
     end
 
     subgraph Inference["Local model serving"]
-        LS[llama-swap]
         LC[llama-server<br/>llama.cpp]
     end
 
     TG --> H
     WA -. specced .-> H
     TM -. specced .-> H
-    H --> LS
-    LS --> LC
+    H --> LC
     LC --> H
     H --> TG
     H -. specced .-> WA
@@ -62,8 +60,21 @@ graph LR
 ```
 
 - **Hermes Agent** ([github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)) holds memory, skills, and tool access; it does not itself generate text.
-- **llama-swap** ([mostlygeek/llama-swap](https://github.com/mostlygeek/llama-swap)) is a reverse proxy that loads/unloads `llama-server` processes on demand from `models.yaml`, enabling multiple models on one machine.
-- **llama.cpp / llama-server** ([ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)) actually runs inference. No external API key anywhere in this path — see `shared/enterprise-safety.md` for what that guarantee does and doesn't cover.
+- **llama.cpp / llama-server** ([ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)) actually runs inference — Hermes talks to it directly, no proxy in between. No external API key anywhere in this path — see `shared/enterprise-safety.md` for what that guarantee does and doesn't cover.
+
+**No `llama-swap` (changed 2026-09-15, issue #101)**: this deployment
+always runs exactly one model, never swapped at runtime — `llama-swap`'s
+only actual value here (loading/unloading models on demand from a
+`models.yaml` of several candidates) was unused. Its separate Docker
+image also had its own update lifecycle nothing in this repo's deploy
+scripts tracked, which let the VPS silently run a two-week-stale
+`llama-server` through a real incident. Both platforms now run the
+official prebuilt `llama-server` binary directly (see
+`shared/prebuilt-binaries.md` and each platform's
+`scripts/download-prebuilt-llama-server.sh`), always loaded, never
+swapped. If real multi-model/multi-profile use ever materializes (see
+section 4), revisit `llama-swap` then rather than reintroducing it
+speculatively.
 
 ## 2. Deployment topologies (live)
 
@@ -81,7 +92,7 @@ commands.
 ```mermaid
 graph TB
     subgraph Mac["Mac (native process)"]
-        LSm[llama-swap] -->|spawns| LCm["llama-server<br/>(Metal, -ngl 99)"]
+        LCm["llama-server<br/>(Metal, -ngl 99)"]
     end
     subgraph DockerD["Docker Desktop (optional — Hermes can also run native)"]
         Hd[hermes container<br/>linux/arm64]
@@ -90,22 +101,23 @@ graph TB
 
     TGm[Telegram] --> Hd
     TGm --> Hn
-    Hd -->|host.docker.internal:8080| LSm
-    Hn -->|127.0.0.1:8080| LSm
+    Hd -->|host.docker.internal:8080| LCm
+    Hn -->|127.0.0.1:8080| LCm
 ```
 
 Metal acceleration requires `llama-server` to run natively — Docker
 Desktop for Mac cannot expose the Metal GPU to a container, so
-llama-swap/llama-server never run in Docker on this platform, regardless
-of whether Hermes itself does.
+`llama-server` never runs in Docker on this platform, regardless of
+whether Hermes itself does. Started via
+`scripts/run-llama-server.sh`.
 
 ### 2.2 Linux x86-64 VPS
 
 ```mermaid
 graph TB
     subgraph DockerV["Docker Compose path (only supported path)"]
-        LSv["llama-swap container<br/>ghcr.io/mostlygeek/llama-swap:cpu"] -->|spawns| LCv[llama-server]
-        Hv[hermes container] -->|llama-swap:8080| LSv
+        LCv["llama-server container<br/>(official prebuilt binary,<br/>bind-mounted, own Dockerfile)"]
+        Hv[hermes container] -->|llama-server:8080| LCv
     end
     CF["cloudflared<br/>(specced, #17 — only for WhatsApp/Teams)"]
 
@@ -113,7 +125,7 @@ graph TB
     CF -. specced .-> Hv
 ```
 
-No GPU assumed by default (`:cpu` image tag) — see `shared/prebuilt-binaries.md`
+No GPU by default (CPU-only prebuilt binary) — see `shared/prebuilt-binaries.md`
 and issue #13 (specced) for GPU detection/support.
 
 ### 2.3 Config flow: a single `.env` file, all four setups
@@ -155,16 +167,13 @@ sequenceDiagram
     participant TG as Telegram Bot API
     participant GW as Hermes Telegram gateway
     participant AL as Agent loop
-    participant LS as llama-swap
     participant LC as llama-server
 
     U->>TG: message
     TG->>GW: poll (long-polling, no public endpoint needed)
     GW->>AL: dispatch
-    AL->>LS: POST /v1/chat/completions<br/>(system prompt + skills + tools + history)
-    LS->>LC: spawn/reuse model process
-    LC-->>LS: streamed tokens (or tool_calls)
-    LS-->>AL: streamed response
+    AL->>LC: POST /v1/chat/completions<br/>(system prompt + skills + tools + history)
+    LC-->>AL: streamed tokens (or tool_calls)
     AL->>AL: run tool if requested, update memory
     AL->>GW: final reply
     GW->>TG: sendMessage / editMessageText

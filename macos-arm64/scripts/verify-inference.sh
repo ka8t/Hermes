@@ -3,8 +3,8 @@
 # throughput against this exact running deployment, instead of only
 # detecting hardware specs — see #14 (macOS CPU-thread sizing, still open;
 # this check is independent of that and covers Metal-offload throughput
-# directly). Run once llama-swap is up (`./scripts/run-llama-swap.sh` or the
-# launchd service) and Hermes is running (Docker or native) — see
+# directly). Run once llama-server is up (`./scripts/run-llama-server.sh` or
+# the launchd service) and Hermes is running (Docker or native) — see
 # ../../shared/hardware-sizing.md for why spec detection alone isn't enough
 # and for the exact thresholds/calibration used below.
 set -euo pipefail
@@ -14,14 +14,14 @@ cd "$REPO_DIR"
 
 LLAMA_URL="${LLAMA_URL:-http://127.0.0.1:8080}"
 
-echo "==> Checking llama-swap is reachable at ${LLAMA_URL}"
+echo "==> Checking llama-server is reachable at ${LLAMA_URL}"
 if ! curl -sf "${LLAMA_URL}/health" >/dev/null; then
-  echo "!! ${LLAMA_URL}/health not reachable. Is llama-swap running natively (see README.md)?" >&2
+  echo "!! ${LLAMA_URL}/health not reachable. Is llama-server running natively (see README.md)?" >&2
   exit 1
 fi
 
-# The model ID comes from llama-swap itself (/v1/models) — this only
-# requires llama-swap to be up, not Hermes. Bug found live-testing this
+# The model ID comes from llama-server itself (/v1/models) — this only
+# requires llama-server to be up, not Hermes. Bug found live-testing this
 # script on 2026-09-03: it previously required Hermes to be running just
 # to read the model ID out of `hermes prompt-size`'s JSON, which meant the
 # whole throughput benchmark (which needs nothing from Hermes) refused to
