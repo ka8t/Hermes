@@ -121,6 +121,61 @@ llama.cpp, not this repo's configuration.
 **If you're tempted to switch to any Qwen2.5 model for tool-heavy agent
 work on llama.cpp, run the raw `curl` test above first.**
 
+### Gemma 3 12B — considered as an escape from the "peg-native" bug, rejected: ignores tools and fabricates instead
+
+**Background**: this repo's default model (Meta-Llama-3.1-8B-Instruct)
+hits the "peg-native format" parse failure below often enough to be a
+real, still-open problem (issue #101). llama.cpp's chat-response
+parser has 5 possible internal formats for a model's reply
+(`content-only`, `peg-simple`, `peg-native`, `peg-gemma4`,
+`peg-minimax-m3` — read directly from `common/chat.cpp`'s source,
+2026-09-15); almost every model family (Llama, Qwen, DeepSeek included)
+routes through `peg-native` — Gemma models are one of the few that get
+a genuinely separate parser, `peg-gemma4`, with its own message
+structure. That looked like a real, code-verified reason `peg-native`'s
+specific bugs might not apply to Gemma (unlike DeepSeek, whose own
+"specialized" template handler was checked directly in the source and
+turned out to still set `data.format = COMMON_CHAT_FORMAT_PEG_NATIVE`
+at the end — no actual escape from the same parser, despite looking
+like one at first glance).
+
+**Test**: `bartowski/google_gemma-3-12b-it-GGUF`, `Q4_K_M` quant,
+downloaded and run locally (macOS/Metal, same `llama-server` build as
+production, `--ctx-size 65536 -ngl 99 --jinja --flash-attn on -ctk q8_0
+-ctv q8_0`), via the raw `curl` test methodology above — one
+`get_weather(location)` tool declared, one message: "What's the
+weather in Paris right now? Use the tool."
+
+**Result**: the model did not call the tool at all. `finish_reason`
+was `"stop"`, not `"tool_calls"`, and `message.content` contained a
+fully fabricated, confident-sounding weather report (temperature,
+conditions, wind, humidity, a plausible-looking but made-up
+timestamp) — invented wholesale rather than reported as unknown or
+obtained via the declared tool, despite the message explicitly saying
+"use the tool."
+
+**Why this is worse than a parser bug, not just a different one**:
+Meta-Llama-3.1-8B-Instruct (this repo's default) reliably *attempts* to
+call tools — its failures (peg-native crashes, malformed `tasks`/
+`operations` arguments, the fabrication issues in #75/#76) happen
+around a genuine tool-call attempt. This Gemma test instead silently
+skipped tool use entirely and fabricated a plausible answer in its
+place — the exact "confident false success" failure class this repo's
+`SOUL.md` verify-before-success instruction (#48) and zero-tool-call
+stopgap (#75) exist to catch, reproduced on a model that was being
+evaluated specifically as an escape from a different, unrelated bug.
+Not investigated further (a different GGUF quant, a `--chat-template`
+override, or a newer bartowski conversion might behave differently —
+none of that was tried): the practical, observed outcome already rules
+this model out for this deployment's purposes, regardless of the exact
+mechanism.
+
+**Conclusion**: rejected. Do not adopt Gemma 3 (this quant, this
+config) as a fix for issue #101 or as a general reliability upgrade —
+verified worse on the specific failure class this repo cares most
+about (fabricated success), not merely "differently unreliable" like
+Qwen3-8B above.
+
 ## Known limitation: intermittent "peg-native format" parse failures
 
 Observed live in this repo's own VPS testing, 2026-09-03: `openai.APIError:

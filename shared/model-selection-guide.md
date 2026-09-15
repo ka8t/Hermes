@@ -20,9 +20,10 @@ re-checking the cited section.
 | Dedicated GPU with real VRAM headroom (vLLM/SGLang, not this repo's llama-swap path) | Meta-Llama-3.1-70B-Instruct | Never tested on this repo's own stack — this repo only runs llama.cpp/llama-swap, not vLLM/SGLang. Treat as a pointer to a different deployment shape, not a drop-in swap here. |
 
 **If you're tempted to switch away from the default for reliability
-reasons**: don't, on today's evidence — the one credible alternative
-tested here (Qwen3-8B) is not more reliable, it just fails differently
-(see below).
+reasons**: don't, on today's evidence — of the two alternatives tested
+here, Qwen3-8B is not more reliable, it just fails differently, and
+Gemma 3 12B tested **worse** on the specific failure class this repo
+cares most about (fabricated success — see below).
 
 ## Full comparison
 
@@ -30,6 +31,7 @@ tested here (Qwen3-8B) is not more reliable, it just fails differently
 |---|---|---|---|---|
 | **Meta-Llama-3.1-8B-Instruct** (default) | ~4.7GB | ~12GB RSS (VPS, 8vCPU) / ~9GB RSS (Mac M1) — [`hardware-sizing.md`](hardware-sizing.md#ram-and-disk-headroom-issue-72) | BFCL `simple_python` **54.75%** (400/400), `parallel` **52.50%** (200/200) — real, complete scores, [`model-evaluation.md`](model-evaluation.md#model-evaluation-bfcl-29). Also has documented goal-drift (#37) and hallucinated-success (#48) failure modes, not unique to this model (see Qwen3-8B below) but the only one with a shipped mitigation (`SOUL.md` instructions) | **In production use, this repo's default** |
 | Qwen3-8B | 4.79GB | Not separately measured — same size class, no reason to expect a large delta | No BFCL score run. This repo's own regression tally (4 runs, native Mac): 2 PASS, 2 FAIL — 1 FAIL matches #37's goal-drift pattern, 1 FAIL is #48's hallucinated-success pattern *plus* a new silent-failure mode (#56, zero final message). Detail: [`model-notes.md`](model-notes.md#model-comparison-for-3748s-failure-classes-issue-55-2026-09-04) | Compatible (native `<tool_call>` XML-JSON, correctly parsed) but **not recommended** — not more reliable than the default, just differently unreliable |
+| Gemma 3 12B (`bartowski/google_gemma-3-12b-it-GGUF`, Q4_K_M) | ~7.3GB | Not separately measured (~11GB+ RSS expected at this repo's 65536-token context, larger model class than the 7-8B default) | Raw `curl` tool-calling test (bypassing Hermes): given one declared tool and told "use the tool," **ignored it entirely** and fabricated a fully plausible-looking answer instead (`finish_reason: "stop"`, not `"tool_calls"`). Detail: [`model-notes.md`](model-notes.md#gemma-3-12b--considered-as-an-escape-from-the-peg-native-bug-rejected-ignores-tools-and-fabricates-instead) | **Rejected** — was evaluated specifically to escape issue #101's parser bug (Gemma gets a genuinely separate llama.cpp chat-format parser, `peg-gemma4`, unlike Qwen/DeepSeek); tested *worse* than the default on a different, more serious failure class (fabricated success, not just a parser crash) |
 | Meta-Llama-3.1-70B-Instruct | N/A here | Needs dedicated GPU hardware (vLLM/SGLang) this repo doesn't provision | No data — never run against this stack | Out of scope for llama-swap/CPU-Metal path; a pointer for a different deployment, not an option in this repo's `provision.sh` |
 | DeepSeek-family | N/A here | No data | No data. llama.cpp has a dedicated `deepseek_v3` tool-call parser and Hermes Agent's own docs list DeepSeek as agentic-capable | **Untested by this repo** — verify with the raw `curl` test in `model-notes.md` before adopting anything here |
 | Qwen2.5-Coder-7B-Instruct | — | — | Tool calls returned as raw text in `content`, not a populated `tool_calls` array — [ggml-org/llama.cpp#12279](https://github.com/ggml-org/llama.cpp/issues/12279), confirmed live two ways | **Rejected** — this repo's original default, replaced after the bug above |
