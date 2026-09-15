@@ -189,7 +189,7 @@ hang. Confirm it's actually working rather than stuck:
 
 ```bash
 # on the VPS
-docker exec llama-swap sh -c 'ps aux | grep llama-server'
+docker exec llama-server sh -c 'ps aux | grep llama-server'
 # a high CPU% (e.g. 190%+ on a 2-vCPU box) and a growing TIME column means
 # it's actively processing, not frozen
 ```

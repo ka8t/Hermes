@@ -35,17 +35,17 @@ approvals. This image is that same base, plus:
   report instead of a fabricated success narrative — see
   [`../shared/model-notes.md`](../shared/model-notes.md)'s #48 section.
 
-It does **not** bundle a model or llama-swap/llama-server — those need
+It does **not** bundle a model or `llama-server` — those need
 platform-specific handling (Metal on Mac, plain CPU on a generic VPS) that
 doesn't belong baked into one image. Point this container at whichever
-llama-swap endpoint you're running, exactly as the
+`llama-server` endpoint you're running, exactly as the
 [`macos-arm64/`](../macos-arm64/) and [`linux-x86_64-vps/`](../linux-x86_64-vps/)
 guides already do — this image only changes what ships inside Hermes
 itself.
 
 ## Quickstart
 
-If you already have a llama-swap endpoint running (either of this repo's
+If you already have a `llama-server` endpoint running (either of this repo's
 two guides gets you one), point Hermes at it exactly as documented there,
 just swap the image name:
 

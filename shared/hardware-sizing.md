@@ -20,7 +20,7 @@ report from an operator.
 Detecting hardware specs (vCPU count, GPU presence) is not enough — this
 repo's own incident below shows two boxes with identical specs can have
 very different real throughput. After `docker compose up -d` (or starting
-the native macOS services) and confirming llama-swap is healthy, run:
+the native macOS services) and confirming llama-server is healthy, run:
 
 ```bash
 # Linux VPS
@@ -30,7 +30,7 @@ the native macOS services) and confirming llama-swap is healthy, run:
 ./scripts/verify-inference.sh
 ```
 
-This sends two real requests to the running llama-swap/llama-server —
+This sends two real requests to the running llama-server —
 a padded ~2500-token prompt (measures prefill throughput) and a short
 generation request (measures tokens/second) — reads this deployment's
 actual fixed prompt budget via `hermes prompt-size --json` (system
