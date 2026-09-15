@@ -24,6 +24,30 @@ echo "== YAML syntax (docker-compose*.yml, *.yaml.example*) =="
 python3 <<'PY' || fail=1
 import glob, sys, yaml
 
+# Compose Specification merge tags (!reset, !override) let one compose
+# file cancel/replace a value from another when used with `docker
+# compose -f a.yml -f b.yml` -- valid syntax for their actual consumer
+# (Docker Compose), used by the GPU overlays (docker-compose.gpu-*.yml,
+# see docs/ARCHITECTURE.md's 2026-09-15 llama-swap removal), but not
+# understood by plain PyYAML's SafeLoader, which would otherwise reject
+# every such file outright. Registered as a pass-through constructor so
+# the underlying value still gets real syntax validation -- this is
+# about accepting the tag, not skipping the file.
+class ComposeLoader(yaml.SafeLoader):
+    pass
+
+def _construct_compose_merge_tag(loader, node):
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node)
+    return None
+
+ComposeLoader.add_constructor("!reset", _construct_compose_merge_tag)
+ComposeLoader.add_constructor("!override", _construct_compose_merge_tag)
+
 bad = False
 patterns = ["**/docker-compose*.yml", "**/*.yaml.example", "**/*.yaml.example.*"]
 seen = set()
@@ -34,7 +58,7 @@ for pattern in patterns:
         seen.add(f)
         try:
             with open(f) as fh:
-                yaml.safe_load(fh)
+                yaml.load(fh, Loader=ComposeLoader)
             print(f"ok   {f}")
         except Exception as e:
             print(f"FAIL {f}: {e}")
