@@ -25,7 +25,7 @@ hermes -p <name> cron create "Watch [source, e.g. YouTube / a subreddit] for
 yourself. Message me only when there's something new and worth knowing."
 ```
 
-## Notes for build-agent-from-intent
+## Notes for agent-profile-builder
 
 - Needs a channel (there's no point in a watcher with nowhere to report to)
   — if the spec says `Channel: none`, ask the user to reconsider before

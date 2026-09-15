@@ -25,7 +25,7 @@ only, likely spam. Send me the summary — don't reply to, archive, or delete
 anything yourself."
 ```
 
-## Notes for build-agent-from-intent
+## Notes for agent-profile-builder
 
 - **Requires explicit, scoped mailbox access** the user grants separately
   (this template does not itself request or configure any mail

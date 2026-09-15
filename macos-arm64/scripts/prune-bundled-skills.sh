@@ -2,7 +2,7 @@
 # Prunes bundled upstream skills irrelevant to this deployment's actual
 # scope (issue #99) — the system prompt's <available_skills> index lists
 # every skill nousresearch/hermes-agent bundles by default (58 total, this
-# repo added only 3: clarify-agent-intent, build-agent-from-intent,
+# repo added only 3: agent-intent-interview, agent-profile-builder,
 # verify-before-success), most with zero relevance to "monitor sources,
 # report on a schedule, via Telegram/email". Real cost, not cosmetic:
 # roughly half the system prompt's ~15.6KB is this index alone (measured

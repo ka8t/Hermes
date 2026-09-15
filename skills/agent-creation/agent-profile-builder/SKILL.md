@@ -1,32 +1,32 @@
 ---
-name: build-agent-from-intent
-description: Turn a clarified agent spec (from clarify-agent-intent, or a named template) into a working, verified Hermes profile — without the user touching a config file by hand.
+name: agent-profile-builder
+description: Turn a clarified agent spec (from agent-intent-interview, or a named template) into a working, verified Hermes profile — without the user touching a config file by hand.
 version: 1.0.0
 author: ka8t/Hermes
 license: MIT
 metadata:
   hermes:
     tags: [profiles, onboarding, agent-creation]
-    related_skills: [clarify-agent-intent]
+    related_skills: [agent-intent-interview]
 ---
 
-# Build Agent From Intent
+# Agent Profile Builder
 
 Implements issue https://github.com/ka8t/Hermes/issues/3 — the second half
 of the guided agent creation flow. Only run this once a spec exists (either
-handed off by `clarify-agent-intent`, or a named template from `../templates/`
+handed off by `agent-intent-interview`, or a named template from `../templates/`
 with no open questions).
 
 ## When to Use
 
-Immediately after `clarify-agent-intent` produces a complete spec, or when
+Immediately after `agent-intent-interview` produces a complete spec, or when
 the user names one of the templates in `../templates/` and confirms they
 want it as-is.
 
 ## Never guess
 
 If any part of the spec is missing or ambiguous, hand back to
-`clarify-agent-intent` instead of filling the gap with an assumption. This
+`agent-intent-interview` instead of filling the gap with an assumption. This
 skill only executes a spec that is already complete.
 
 ## Procedure

@@ -241,23 +241,23 @@ fi
 # --- #76: agent-creation skill routing ---
 # See ../../docker/Dockerfile's matching block for the full incident —
 # after #75's fix, the model calls tools but picks a mismatched existing
-# skill instead of clarify-agent-intent/build-agent-from-intent.
-AGENT_ROUTING_MARKER="maps specifically to the clarify-agent-intent"
+# skill instead of agent-intent-interview/agent-profile-builder.
+AGENT_ROUTING_MARKER="maps specifically to the agent-intent-interview"
 if grep -qF "${AGENT_ROUTING_MARKER}" "${SOUL_MD}"; then
   echo "==> SOUL.md already has the agent-creation routing instruction (#76) — left as is"
 else
-  printf '\n\nWhen the user asks you to create or build an agent — not just to answer a question or look something up — that request maps specifically to the clarify-agent-intent and build-agent-from-intent skills. Start there. Recommending an existing unrelated skill (even a close-sounding one) instead of building the requested agent, or explaining to the user how they could do it themselves, does not fulfill an explicit '"'"'create an agent'"'"' request — it is a different, smaller answer to a bigger question.' \
+  printf '\n\nWhen the user asks you to create or build an agent — not just to answer a question or look something up — that request maps specifically to the agent-intent-interview and agent-profile-builder skills. Start there. Recommending an existing unrelated skill (even a close-sounding one) instead of building the requested agent, or explaining to the user how they could do it themselves, does not fulfill an explicit '"'"'create an agent'"'"' request — it is a different, smaller answer to a bigger question.' \
     >> "${SOUL_MD}"
   echo "==> SOUL.md patched with agent-creation routing instruction (#76)"
 fi
 
 # --- #101: no fabricated tool-call JSON in chat content ---
 # See https://github.com/ka8t/Hermes/issues/101. Confirmed live: naming
-# clarify-agent-intent/build-agent-from-intent in #76's routing instruction,
+# agent-intent-interview/agent-profile-builder in #76's routing instruction,
 # combined with #48's "append this note whenever a reply relies on
 # delegate_task" disclaimer, makes this model fabricate a fake single-
 # function tool call as plain chat text (e.g. {"name":
-# "clarify-agent-intent", "parameters": {...}}) followed by the mandated
+# "agent-intent-interview", "parameters": {...}}) followed by the mandated
 # disclaimer -- llama-server's PEG_NATIVE chat-format parser then rejects
 # the mixed JSON-plus-prose output with "The model produced output that
 # does not match the expected peg-native format" (a 500 from llama-server
@@ -270,7 +270,7 @@ FAKE_TOOL_MARKER="never represent a tool call as JSON or code in your reply text
 if grep -qF "${FAKE_TOOL_MARKER}" "${SOUL_MD}"; then
   echo "==> SOUL.md already has the no-fabricated-tool-call instruction (#101) — left as is"
 else
-  printf '\n\nYou never represent a tool call as JSON or code in your reply text — not a real one, not an attempted one, not an example. If you intend to use a tool (delegate_task included, and handing off to a skill such as clarify-agent-intent or build-agent-from-intent), call it through the real function-calling mechanism, not by writing its name and arguments as text in your message. If you are not calling a tool this turn, write your reply as plain prose with no JSON-shaped fragment resembling one.' \
+  printf '\n\nYou never represent a tool call as JSON or code in your reply text — not a real one, not an attempted one, not an example. If you intend to use a tool (delegate_task included, and handing off to a skill such as agent-intent-interview or agent-profile-builder), call it through the real function-calling mechanism, not by writing its name and arguments as text in your message. If you are not calling a tool this turn, write your reply as plain prose with no JSON-shaped fragment resembling one.' \
     >> "${SOUL_MD}"
   echo "==> SOUL.md patched with no-fabricated-tool-call instruction (#101)"
 fi

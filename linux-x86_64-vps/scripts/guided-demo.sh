@@ -2,7 +2,7 @@
 # Guided first-use demo (issue #63, part of #59) — the actual point of the
 # guided setup flow: not just "the container is up," but a real, understood
 # first success using this repo's own flagship feature (natural-language
-# agent creation via the bundled clarify-agent-intent/build-agent-from-intent
+# agent creation via the bundled agent-intent-interview/agent-profile-builder
 # skills). Called from provision.sh's interactive flow; also runnable
 # standalone once a deployment is already up.
 set -euo pipefail

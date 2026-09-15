@@ -42,7 +42,7 @@ estimated_prefill_seconds = (real_prompt_chars / 4.3) / measured_prefill_tok_per
 ```
 
 **The 4.3 chars/token figure is empirically calibrated**, not assumed:
-measured by tokenizing this repo's own `clarify-agent-intent/SKILL.md`
+measured by tokenizing this repo's own `agent-intent-interview/SKILL.md`
 content (4495 chars → 1041 tokens) through the deployed model's own
 tokenizer, via llama-swap's `/upstream/<model>/tokenize` route — real
 repo content, not a generic ratio pulled from nowhere. It's an

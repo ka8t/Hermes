@@ -21,6 +21,7 @@ See also: [Glossary](GLOSSARY.md) for acronyms/technical terms used below.
 ## Table of contents
 
 - [1. System overview](#1-system-overview)
+  - [1.1 Roles: who actually "understands" a request](#11-roles-who-actually-understands-a-request)
 - [2. Deployment topologies (live)](#2-deployment-topologies-live)
 - [3. Message flow (Telegram)](#3-message-flow-telegram--live-verified)
 - [4. Multi-user profile isolation](#4-multi-user-profile-isolation-partially-live--5)
@@ -76,11 +77,67 @@ swapped. If real multi-model/multi-profile use ever materializes (see
 section 4), revisit `llama-swap` then rather than reintroducing it
 speculatively.
 
+### 1.1 Roles: who actually "understands" a request
+
+Easy to misread this as two peers talking to each other. They aren't —
+the two pieces have completely different jobs, and only one of them has
+any intelligence at all.
+
+- **`llama-server` is a raw text predictor, nothing more.** It loads one
+  model file and answers one question, over and over: "given this text,
+  what comes next?" It has no concept of "agent," "skill," "tool," or
+  even "conversation" — those are meanings Hermes imposes on top of
+  plain text in and plain text out. Swap the `.gguf` file and it
+  behaves identically with a different model; it doesn't know or care
+  which one is loaded.
+- **Hermes has no intelligence of its own.** It's the orchestrator:
+  conversation memory, a library of skills (written procedures), a set
+  of tools it can actually execute (create a cron job, send a message,
+  run a search...), and the loop that ties them together. It cannot
+  decide anything by itself — every decision in the exchange below
+  happens inside the model, not in Hermes's code.
+
+**How a request actually gets handled** — this is the same loop
+regardless of channel (Telegram, `hermes -z`, the web dashboard, the
+API server all hit it identically):
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant H as Hermes (orchestrator)
+    participant M as llama-server (the model)
+
+    U->>H: "Crée un agent qui m'envoie<br/>un message tous les jours"
+    H->>H: builds ONE prompt: SOUL.md rules +<br/>skills index + tools list +<br/>conversation history + this message
+    H->>M: sends the whole prompt
+    Note over M: all "understanding" happens here —<br/>Hermes itself decides nothing
+    M-->>H: plain text reply, OR a tool call
+    alt model requested a tool
+        H->>H: actually executes it (real Python code —<br/>create the cron job, call the API, etc.)
+        H->>M: sends the tool's result back
+        M-->>H: continues: another tool call, or a final reply
+    end
+    H->>U: final reply
+```
+
+**Why this repo tests against a local `llama-server` instead of a
+mock, a cloud API, or Ollama**: Hermes cannot function without some
+model to talk to — there's no way to "test Hermes alone." The question
+is only which backend to point it at. Running the exact same
+`llama-server` binary, the exact same model file, and the exact same
+flags locally (Metal on Mac) as the real deployment (CPU on the VPS)
+means a bug or a fix observed locally is representative of production,
+not an approximation of it — this is how issue #101's "peg-native
+format" bug was actually root-caused and how its fixes were validated,
+seconds-per-attempt on a Mac instead of 20-40 minutes per attempt on
+the VPS. Pointing at a different engine (Ollama, a cloud API) would
+test a different inference stack with different bugs, not this one.
+
 ## 2. Deployment topologies (live)
 
 Two independent platform configurations. macOS offers a Docker path and
-a fully-native (no-Docker) path for Hermes itself (llama-swap/llama-server
-always run natively there regardless). The VPS is Docker-only — a native
+a fully-native (no-Docker) path for Hermes itself (`llama-server` always
+runs natively there regardless). The VPS is Docker-only — a native
 (no-Docker) VPS path was built and briefly available (2026-09-07) but
 abandoned before any real deployment used it, in favor of a single
 supported path per platform; see `docs/adr/0001-vps-docker-only.md`. See

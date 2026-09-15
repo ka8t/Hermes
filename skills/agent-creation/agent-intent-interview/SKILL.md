@@ -1,5 +1,5 @@
 ---
-name: clarify-agent-intent
+name: agent-intent-interview
 description: Interview the user before creating a new Hermes profile/agent, so the result matches what they actually meant instead of a guess.
 version: 1.0.0
 author: ka8t/Hermes
@@ -7,10 +7,10 @@ license: MIT
 metadata:
   hermes:
     tags: [profiles, onboarding, agent-creation]
-    related_skills: [build-agent-from-intent]
+    related_skills: [agent-profile-builder]
 ---
 
-# Clarify Agent Intent
+# Agent Intent Interview
 
 Implements issue https://github.com/ka8t/Hermes/issues/2 — the first half of
 the guided agent creation flow.
@@ -56,12 +56,12 @@ Rome") — only when a genuinely new, separate profile is being proposed.
    can shortcut most of the questions above.
 4. **Do not create, modify, or configure anything yourself.** Once every
    point above is answered (or explicitly declined), hand off the finished
-   spec to the `build-agent-from-intent` skill.
+   spec to the `agent-profile-builder` skill.
 
 ## Output
 
 A short spec in this shape, either stated back to the user for confirmation
-or passed directly into `build-agent-from-intent` in the same turn:
+or passed directly into `agent-profile-builder` in the same turn:
 
 ```
 Agent: <name>

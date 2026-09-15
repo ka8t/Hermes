@@ -159,7 +159,7 @@ with its `tasks` parameter sent as a plain string instead of a JSON
 array (`"tasks must be a JSON array of task objects; received a string
 that could not be parsed as JSON"`) — the same category of bug already
 documented for the `clarify` tool (see
-`skills/agent-creation/clarify-agent-intent/SKILL.md`'s fix), but on a
+`skills/agent-creation/agent-intent-interview/SKILL.md`'s fix), but on a
 **different** tool. This model's difficulty with nested array/object tool
 parameters is not `clarify`-specific; expect it on any tool with a
 similarly-shaped schema, not just the ones already worked around.
@@ -194,7 +194,7 @@ edits.
 concluding it's a model limitation**: the recovered system prompt (from
 `state.db`'s `system_prompts` table, keyed by the session's
 `system_prompt_hash` — `sessions.system_prompt` itself was NULL) showed
-`clarify-agent-intent` and `build-agent-from-intent` correctly indexed
+`agent-intent-interview` and `agent-profile-builder` correctly indexed
 under `ka8t-hermes/agent-creation`, with Hermes's own generic
 instruction ("load [skills] even for tasks you already know how to do")
 present immediately above the skills index. This skill's own "When to
@@ -385,7 +385,7 @@ natively with `-ngl 99`). Full sequence, reconstructed from `state.db`:
    real channel, despite the regression gate.
 2. In parallel, the model had also dispatched a background subagent via
    `delegate_task`. That subagent found the *correct* skill
-   (`build-agent-from-intent`) after some wandering, but its actual
+   (`agent-profile-builder`) after some wandering, but its actual
    final action was **a fake tool call written as plain text**
    (`"I will create a agent...\n\n{\"name\": \"terminal\",
    \"parameters\": {...}}"`) rather than a real structured tool
@@ -541,10 +541,10 @@ doesn't fire on an ordinary slow response.
 **`clarify` itself root-caused and fixed at the code level (2026-09-10,
 issue #88).** The bug this whole section opened with — `clarify` failing
 with `"questions must be an array of question objects."` — was only ever
-worked around at the skill level until now (`clarify-agent-intent/SKILL.md`
+worked around at the skill level until now (`agent-intent-interview/SKILL.md`
 telling the model to avoid the tool entirely, quoted at the top of this
 section). That workaround only helps when the model has actually loaded
-`clarify-agent-intent` — reproduced live, 2026-09-10, on a plain Telegram
+`agent-intent-interview` — reproduced live, 2026-09-10, on a plain Telegram
 "Bonjour" that never touched any agent-creation skill at all: the model
 reached for `clarify` unprompted, sent `questions` as a bare object
 (`{"question": "..."}`) instead of a one-entry array, hit the exact same
@@ -578,7 +578,7 @@ array-type check runs. A code-level fix, not a skill instruction —
 unlike the `web-search-query-only` skill mitigation above (removed,
 ineffective), this one doesn't depend on the model choosing to follow
 guidance; the tool itself now accepts the shape this model actually
-produces. Complements, doesn't replace, `clarify-agent-intent/SKILL.md`'s
+produces. Complements, doesn't replace, `agent-intent-interview/SKILL.md`'s
 own avoidance advice, which exists partly for a separate reason (the
 tool asks its questions one at a time on messaging platforms, defeating
 single-message batching) unrelated to this bug.
@@ -638,7 +638,7 @@ tally on any of them:
   | 1 | `clarify` → `skill_view` (wrong path, honest error) → `terminal` (failed, missing `sudo`/`pip3`) → honest final message | PASS |
   | 2 | `delegate_task` (#37-shaped drift) → delegation timed out, honestly reported as a tool error → pivot to unrelated `browser_exec` (failed) → session ends, **zero final message** | FAIL — new mode, filed as #56 |
   | 3 | straight to `browser_exec` (skipped clarify/skill check) → failed → honest final message, 3 alternatives offered | PASS |
-  | 4 | `clarify` → correctly found `build-agent-from-intent` → `delegate_task` → subagent's real tool calls returned empty output → subagent **fabricated a full fake verification report** → delegation layer marked `status=completed` → main session repeated the fabrication verbatim, independently confirmed false via `hermes profile list` | FAIL — #48's exact pattern, reproduces on Qwen3-8B too |
+  | 4 | `clarify` → correctly found `agent-profile-builder` → `delegate_task` → subagent's real tool calls returned empty output → subagent **fabricated a full fake verification report** → delegation layer marked `status=completed` → main session repeated the fabrication verbatim, independently confirmed false via `hermes profile list` | FAIL — #48's exact pattern, reproduces on Qwen3-8B too |
 
   **Conclusion: Qwen3-8B is not more reliable than the current default
   on this test** — it reproduces both #37's drift tendency and #48's

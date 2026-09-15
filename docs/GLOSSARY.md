@@ -135,7 +135,7 @@ the AMD equivalent of NVIDIA's CUDA. See `shared/gpu-setup.md`.
 ## Skill (Hermes)
 A packaged, version-controlled procedure Hermes can follow — written
 instructions (not code) that guide the model through a multi-step task,
-like `skills/agent-creation/clarify-agent-intent`. Distinct from a
+like `skills/agent-creation/agent-intent-interview`. Distinct from a
 **tool**, which is a concrete function-calling capability (like
 `terminal` or `web_search`).
 

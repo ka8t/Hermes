@@ -5,7 +5,7 @@ starts with no skills beyond Hermes's own bundled set and no opinion on
 approvals. This image is that same base, plus:
 
 - **[Guided agent creation](../skills/agent-creation/)** — two bundled
-  skills (`clarify-agent-intent`, `build-agent-from-intent`) that let you
+  skills (`agent-intent-interview`, `agent-profile-builder`) that let you
   say "create an agent that watches my Reddit for AI news" and get a
   working, verified profile back, instead of hand-editing config. See
   [`../shared/managing-models.md`](../shared/managing-models.md) for the
@@ -137,8 +137,8 @@ Built and booted locally against a fresh volume before publishing:
 - `docker/stage2-hook.sh` (part of the base image) syncs
   `/opt/hermes/skills/ka8t-hermes/agent-creation/*` into the running
   instance's live skills directory on every boot — confirmed in the boot
-  log (`Syncing bundled skills... + build-agent-from-intent
-  + clarify-agent-intent`).
+  log (`Syncing bundled skills... + agent-profile-builder
+  + agent-intent-interview`).
 - The `approvals.mode: manual` line, appended to the base image's own
   `cli-config.yaml.example`, is present in the actual `config.yaml`
   written on first boot — confirmed by inspecting the seeded file.
