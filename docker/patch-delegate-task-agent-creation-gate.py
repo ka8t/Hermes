@@ -50,8 +50,28 @@ pattern. With both changes, 1/3 fresh local runs completed the real
 disk); the other 2/3 attempted real execution (not just prose) but picked
 the wrong mechanism (re-delegating, or a fabricated Python import instead
 of the `terminal` tool) — a separate, harder execution-correctness problem
-that remains open, not a regression of the routing fix itself. See issue
-#76 for current status.
+that remains open, not a regression of the routing fix itself.
+
+**Iteration 3, same day: closing the goal-text whack-a-mole gap.** The
+`_AGENT_CREATION_RE` check above only ever looks at the `goal` text the
+model itself writes for the delegated task -- and the model can reword
+that freely. Live-captured: after one refusal, a retry rephrased "Create a
+daily reminder agent" into "send daily message" (no "agent" word at all)
+and slipped straight past the regex, spawning an unguided subagent exactly
+as issue #76 describes. `_origin_user_message_agent_creation_match()`
+closes this by also matching against the CURRENT TURN's actual human
+message (via `parent_agent._session_db.get_messages(...)`) -- the human
+does not reword their own request between retries the way the model
+rewords its `goal`, so this catches what the goal-only check misses.
+Best-effort and additive: falls back to `None` (goal-only check still
+applies) whenever session history isn't available, and never raises.
+Verified live: 6/6 delegate_task attempts blocked in one turn, including
+one whose `goal` text ("send...") would have slipped through the old
+check alone -- confirmed via the refusal message itself, which named the
+ORIGIN text ("Crée un agent") rather than the goal text, proving the new
+path fired. No false positive observed on an unrelated legitimate
+delegation prompt (regex match against that prompt's own text: none).
+See issue #76 for current status.
 """
 import pathlib
 import re
@@ -94,14 +114,41 @@ _AGENT_CREATION_RE = re.compile(
 
 def _agent_creation_goal_match(goal: str) -> Optional[str]:
     m = _AGENT_CREATION_RE.search(goal)
-    return m.group(0) if m else None'''
+    return m.group(0) if m else None
+
+
+def _origin_user_message_agent_creation_match(parent_agent: Any) -> Optional[str]:
+    """Match against the CURRENT TURN's actual human message, not the model's own
+    (freely rewordable) ``goal`` text -- the whack-a-mole gap in the goal-only check:
+    live-captured 2026-09-15, a retry after the first refusal rephrased "Create a
+    daily reminder agent" into "send daily message" / "Create a new Hermes profile
+    for..." and slipped past every goal-text pattern tried, while the human's own
+    message stayed exactly the same word for word across every retry in that turn.
+    Best-effort: returns ``None`` (no opinion, caller falls back to the goal-only
+    check) whenever session history isn't available -- never raises, since this must
+    not be able to break delegate_task for deployments/sessions without persistence.
+    """
+    session_db = getattr(parent_agent, "_session_db", None)
+    session_id = getattr(parent_agent, "session_id", None)
+    if session_db is None or not session_id:
+        return None
+    try:
+        recent = session_db.get_messages(session_id, limit=10, latest=True)
+    except Exception:
+        return None
+    for msg in reversed(recent or []):
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            content = msg.get("content")
+            return _agent_creation_goal_match(content) if isinstance(content, str) else None
+    return None'''
 
 SIG_OLD = '''def _normalize_task_list(
     goal, context, tasks, output_schema, top_role: str, max_children: int
 ) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:'''
 
 SIG_NEW = '''def _normalize_task_list(
-    goal, context, tasks, output_schema, top_role: str, max_children: int, depth: int = 0
+    goal, context, tasks, output_schema, top_role: str, max_children: int, depth: int = 0,
+    parent_agent: Any = None,
 ) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:'''
 
 GATE_OLD = '''        if not task.get("goal", "").strip():
@@ -113,9 +160,10 @@ GATE_NEW = '''        if not task.get("goal", "").strip():
     # Only at depth 0: the top-level agent handing off its OWN conversation
     # turn, not a subagent decomposing already-scoped work (see issue #76).
     if depth == 0:
+        origin_matched = _origin_user_message_agent_creation_match(parent_agent)
         for i, task in enumerate(task_list):
             goal_text = str(task.get("goal", ""))
-            if matched := _agent_creation_goal_match(goal_text):
+            if matched := (_agent_creation_goal_match(goal_text) or origin_matched):
                 return None, (
                     f"Task {i} ({matched!r}) asks to create a new agent/bot/assistant. "
                     "STOP -- do not call delegate_task again for this, and do not just "
@@ -154,7 +202,9 @@ CALL_OLD = (
     "    task_list, err = _normalize_task_list(goal, context, tasks, output_schema, top_role, max_children)"
 )
 CALL_NEW = (
-    "    task_list, err = _normalize_task_list(goal, context, tasks, output_schema, top_role, max_children, depth)"
+    "    task_list, err = _normalize_task_list(\n"
+    "        goal, context, tasks, output_schema, top_role, max_children, depth, parent_agent,\n"
+    "    )"
 )
 if CALL_OLD not in delegate_text:
     sys.exit(

@@ -348,13 +348,40 @@ broadened `hermes profile` branch) — confirming the patched code is
 present and functions correctly on the VPS, independent of whether a full
 conversation can reach it without tripping the unrelated #101 bug first.
 
+**Iteration 3, next day: closing the goal-text whack-a-mole gap.** Every
+version above only ever matches `_AGENT_CREATION_RE` against the `goal`
+text the model itself writes for the delegated task — and the model can
+reword that freely between retries. Live-captured, 2026-09-16: after the
+first refusal, a retry rephrased "Create a daily reminder agent" into
+"send daily message" (no "agent" word anywhere) and slipped straight past
+the regex, exactly the failure mode this issue is about. Fixed by also
+matching against the CURRENT TURN's actual human message — fetched via
+`parent_agent._session_db.get_messages(session_id, limit=10, latest=True)`,
+scanning backward for the most recent `role="user"` entry — since a human
+does not reword their own request between retries the way the model
+rewords its `goal`. Best-effort and purely additive: falls back to `None`
+(goal-only check still applies) whenever session history isn't available,
+and never raises, so it can't break `delegate_task` for a deployment or
+session without persistence.
+
+Verified live, macOS: 6/6 `delegate_task` attempts blocked within one
+turn, including one whose `goal` text ("send...") would have slipped
+through the old check alone — confirmed via the refusal message itself,
+which named the ORIGIN text ("Crée un agent") rather than the goal text,
+proving the new path is what actually fired. A second run showed the
+model, after being blocked, correctly call `clarify` to ask the
+interview's own questions — a further sign of correct routing. No false
+positive observed: the origin-check's own regex returns no match against
+an unrelated legitimate delegation prompt's text.
+
 **What this fixes vs. what it doesn't.** This closes the specific
 mechanism issue #76 is about — the mismatched/never-consulted skill
 failure can no longer happen, because delegation itself is blocked before
 any subagent is ever spawned, and (after iteration 2) the model reliably
-consults the right skills afterward. It does **not** make full end-to-end
-agent creation reliable: even after correctly consulting both skills, the
-model doesn't consistently pick the right execution tool for
+consults the right skills afterward; iteration 3 closes the main remaining
+gap (goal-text rephrasing evading the block). It does **not** make full
+end-to-end agent creation reliable: even after correctly consulting both
+skills, the model doesn't consistently pick the right execution tool for
 `agent-profile-builder`'s CLI steps — a separate, narrower
 execution-correctness problem, not a routing problem, and consistent with
 the same instruction-following/tool-selection ceiling documented
