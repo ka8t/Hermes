@@ -1,5 +1,41 @@
 # Hermes
 
+> [!WARNING]
+> **This project is deprecated and no longer maintained.** It has
+> known reliability and security limitations that will not be fixed
+> here: a static, `.env`-based user allow-list instead of a real
+> permissions system; no application-layer encryption of stored user
+> data; a dependency on a closed-source base image
+> (`nousresearch/hermes-agent`) that limits what can actually be
+> audited or fixed; and a documented incident (issue #101) where a
+> stale `llama-swap` image silently ran an out-of-date `llama-server`
+> for two weeks because nothing tracked its own update lifecycle.
+>
+> Development has moved to **[ChannelAgent](https://github.com/ka8t/ChannelAgent)**,
+> a from-scratch rewrite keeping the same local-first, no-cloud
+> principles, with an encrypted, database-backed user/permission
+> system replacing the static allow-list. **Switch to ChannelAgent for
+> any new deployment** — this repository is kept for reference only.
+>
+> **[FR]** **Ce projet est obsolète et n'est plus maintenu.** Il
+> présente des limites de fiabilité et de sécurité connues qui ne
+> seront pas corrigées ici : une liste d'utilisateurs autorisés
+> statique dans `.env` au lieu d'un vrai système de permissions ;
+> aucun chiffrement applicatif des données utilisateur stockées ; une
+> dépendance à une image de base propriétaire
+> (`nousresearch/hermes-agent`) qui limite ce qui peut réellement être
+> audité ou corrigé ; et un incident documenté (issue #101) où une
+> image `llama-swap` obsolète a fait tourner silencieusement un
+> `llama-server` périmé pendant deux semaines, faute de suivi de son
+> propre cycle de mise à jour.
+>
+> Le développement s'est poursuivi sur **[ChannelAgent](https://github.com/ka8t/ChannelAgent)**,
+> une réécriture complète conservant les mêmes principes 100% local et
+> sans cloud, avec un système utilisateurs/permissions chiffré et basé
+> sur une base de données remplaçant la liste statique. **Basculez vers
+> ChannelAgent pour tout nouveau déploiement** — ce dépôt n'est
+> conservé qu'à titre de référence.
+
 See also: [Glossary](docs/GLOSSARY.md) for acronyms/technical terms used below.
 
 A self-hosted AI agent that runs entirely on your own hardware — no
